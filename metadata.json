@@ -1,5 +1,7 @@
 {
   "name": "Erawan Fire Surveillance System",
   "description": "ระบบรายงานและเช็คชื่อจุดเฝ้าระวังไฟป่า อุทยานแห่งชาติเอราวัณ รองรับการส่งรูปภาพและบันทึกข้อมูลแยกตามช่วงเวลาและจุดเฝ้าระวัง",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

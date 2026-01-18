@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { WATCH_POINTS, APP_TITLE } from './constants';
 import { Shift, ReportState } from './types';
 import { submitReport, fetchDashboardData } from './services/mockDriveService';
@@ -32,24 +32,24 @@ const App: React.FC = () => {
     return name.replace(/(\d+)/, (match) => match.padStart(2, '0'));
   };
 
-  const loadDashboardData = async (targetDate: string) => {
+  const loadDashboardData = useCallback(async (targetDate: string) => {
     setIsLoadingDashboard(true);
     try {
       const data = await fetchDashboardData(targetDate);
       setFolderStatus(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to load dashboard:", err);
+      console.error("Dashboard error:", err);
       setFolderStatus([]);
     } finally {
       setIsLoadingDashboard(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (view === 'admin' || view === 'user') {
+    if (view !== 'login') {
       loadDashboardData(state.date);
     }
-  }, [state.date, view]);
+  }, [state.date, view, loadDashboardData]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -148,7 +148,7 @@ const App: React.FC = () => {
             {loginError && <p className="text-rose-500 text-xs text-center mt-2 font-bold animate-bounce">รหัสผ่านไม่ถูกต้อง!</p>}
           </div>
           <button type="submit" className="w-full py-4.5 bg-emerald-700 text-white rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all">เข้าสู่ระบบ</button>
-          <button type="button" onClick={() => {setView('user'); setLoginError(false);}} className="w-full py-3 text-slate-400 font-bold text-sm">ยกเลิก</button>
+          <button type="button" onClick={() => {setView('user'); setLoginError(false);}} className="w-full py-3 text-slate-400 font-bold text-sm text-center block">ยกเลิก</button>
         </form>
       </div>
     </div>
@@ -207,16 +207,16 @@ const App: React.FC = () => {
             <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-20 flex items-center justify-center">
                <div className="flex flex-col items-center gap-3">
                  <OutlineIcons.ArrowPathIcon className="w-10 h-10 text-emerald-600 animate-spin" />
-                 <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Scanning Drive Data...</span>
+                 <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Scanning Data...</span>
                </div>
             </div>
           )}
           <div className="p-5 bg-slate-50/80 border-b border-slate-100 flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
-            <span className="w-1/3">WATCH POINT</span>
+            <span className="w-1/3 text-left">WATCH POINT</span>
             <div className="w-2/3 flex justify-around">
-              <span className="w-1/3 text-center">MORNING</span>
-              <span className="w-1/3 text-center">NOON</span>
-              <span className="w-1/3 text-center">EVENING</span>
+              <span className="w-1/3 text-center">เช้า</span>
+              <span className="w-1/3 text-center">กลางวัน</span>
+              <span className="w-1/3 text-center">เย็น</span>
             </div>
           </div>
           <div className="divide-y divide-slate-50 max-h-[60vh] overflow-y-auto custom-scrollbar">
@@ -322,7 +322,7 @@ const App: React.FC = () => {
               <option value="">-- เลือกจุดเฝ้าระวัง --</option>
               {WATCH_POINTS.map(p => {
                 const formattedName = formatPointName(p.name);
-                const hasReports = folderStatus.filter(f => f.pointName === formattedName).length > 0;
+                const hasReports = folderStatus.some(f => f.pointName === formattedName);
                 return (
                   <option key={p.id} value={p.id}>
                     {formattedName} {hasReports ? '(ส่งแล้วบางช่วง)' : ''}
@@ -353,7 +353,7 @@ const App: React.FC = () => {
                           ? 'bg-slate-100 border-transparent text-slate-400 opacity-80' 
                           : 'bg-purple-50/50 border-transparent text-purple-400'}`}
                   >
-                    <div className="flex flex-col items-start">
+                    <div className="flex flex-col items-start text-left">
                       <span className="tracking-tight text-lg">{shift}</span>
                       {isSent && <span className="text-[10px] font-bold text-emerald-600 uppercase mt-0.5">✓ ส่งรายงานแล้ว</span>}
                     </div>
@@ -377,7 +377,7 @@ const App: React.FC = () => {
             <div className="grid grid-cols-3 gap-3">
               {state.images.map((img, idx) => (
                 <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-slate-100 shadow-md">
-                  <img src={img} className="w-full h-full object-cover" />
+                  <img src={img} className="w-full h-full object-cover" alt="evidence" />
                   <button onClick={() => setState(prev => ({...prev, images: prev.images.filter((_, i) => i !== idx)}))} className="absolute top-1.5 right-1.5 bg-rose-600 text-white p-1.5 rounded-full shadow-lg"><OutlineIcons.TrashIcon className="w-3.5 h-3.5" /></button>
                 </div>
               ))}
