@@ -3,25 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { WATCH_POINTS, APP_TITLE } from './constants';
 import { Shift, ReportState } from './types';
 import { submitReport, fetchDashboardData } from './services/mockDriveService';
-import { 
-  CheckCircleIcon, 
-  MapPinIcon, 
-  ClockIcon, 
-  TrashIcon,
-  ArrowPathIcon,
-  CalendarDaysIcon,
-  PhotoIcon,
-  PlusIcon,
-  ChartBarIcon,
-  ChevronLeftIcon,
-  ArrowPathRoundedSquareIcon,
-  ChatBubbleLeftRightIcon,
-  InformationCircleIcon,
-  FolderOpenIcon,
-  ExclamationTriangleIcon,
-  LockClosedIcon
-} from '@heroicons/react/24/outline';
-import { XCircleIcon as XCircleSolid } from '@heroicons/react/24/solid';
+import * as OutlineIcons from '@heroicons/react/24/outline';
+import * as SolidIcons from '@heroicons/react/24/solid';
 
 const App: React.FC = () => {
   const today = new Date().toISOString().split('T')[0];
@@ -53,9 +36,10 @@ const App: React.FC = () => {
     setIsLoadingDashboard(true);
     try {
       const data = await fetchDashboardData(targetDate);
-      setFolderStatus(data);
+      setFolderStatus(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load dashboard:", err);
+      setFolderStatus([]);
     } finally {
       setIsLoadingDashboard(false);
     }
@@ -93,6 +77,7 @@ const App: React.FC = () => {
   };
 
   const executeSubmit = async () => {
+    if (!state.shift) return;
     setShowConfirmOverlap(false);
     setState(prev => ({ ...prev, isSubmitting: true }));
     
@@ -101,7 +86,7 @@ const App: React.FC = () => {
     
     const result = await submitReport(
       formattedName, 
-      state.shift as Shift, 
+      state.shift, 
       state.images, 
       state.notes, 
       state.date
@@ -145,7 +130,7 @@ const App: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center p-6 bg-slate-900">
       <div className="w-full max-w-sm bg-white rounded-[3rem] p-8 shadow-2xl animate-in zoom-in duration-300">
         <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-700">
-          <LockClosedIcon className="w-10 h-10" />
+          <OutlineIcons.LockClosedIcon className="w-10 h-10" />
         </div>
         <h2 className="text-2xl font-black text-center text-slate-800 mb-2">ยืนยันตัวตน</h2>
         <p className="text-center text-slate-500 text-sm mb-8 italic">เฉพาะเจ้าหน้าที่ผู้ดูแลระบบเท่านั้น</p>
@@ -176,7 +161,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-slate-50 p-4 pb-20 animate-in fade-in duration-500">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => setView('user')} className="flex items-center gap-1 text-emerald-700 font-bold bg-white px-4 py-2 rounded-full shadow-sm border border-emerald-100 active:scale-95 transition-all">
-            <ChevronLeftIcon className="w-4 h-4" />
+            <OutlineIcons.ChevronLeftIcon className="w-4 h-4" />
             กลับหน้าส่งรายงาน
           </button>
           <div className="flex items-center gap-2">
@@ -191,7 +176,7 @@ const App: React.FC = () => {
               disabled={isLoadingDashboard}
               className={`p-2 transition-all bg-white rounded-full shadow-sm ${isLoadingDashboard ? 'text-emerald-500' : 'text-slate-400'}`}
             >
-              <ArrowPathRoundedSquareIcon className={`w-5 h-5 ${isLoadingDashboard ? 'animate-spin' : ''}`} />
+              <OutlineIcons.ArrowPathRoundedSquareIcon className={`w-5 h-5 ${isLoadingDashboard ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
@@ -214,14 +199,14 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-          <FolderOpenIcon className="absolute -right-6 -bottom-6 w-40 h-40 text-white/5 rotate-12" />
+          <OutlineIcons.FolderOpenIcon className="absolute -right-6 -bottom-6 w-40 h-40 text-white/5 rotate-12" />
         </div>
 
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden mb-6 relative">
           {isLoadingDashboard && (
             <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-20 flex items-center justify-center">
                <div className="flex flex-col items-center gap-3">
-                 <ArrowPathIcon className="w-10 h-10 text-emerald-600 animate-spin" />
+                 <OutlineIcons.ArrowPathIcon className="w-10 h-10 text-emerald-600 animate-spin" />
                  <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Scanning Drive Data...</span>
                </div>
             </div>
@@ -248,10 +233,10 @@ const App: React.FC = () => {
                         <div key={s} className="w-1/3 flex justify-center">
                           {isExist ? (
                             <div className="p-1 bg-emerald-100 rounded-full animate-in zoom-in duration-300">
-                              <CheckCircleIcon className="w-6 h-6 text-emerald-600" />
+                              <OutlineIcons.CheckCircleIcon className="w-6 h-6 text-emerald-600" />
                             </div>
                           ) : (
-                            <XCircleSolid className="w-6 h-6 text-rose-200/70" />
+                            <SolidIcons.XCircleIcon className="w-6 h-6 text-rose-200/70" />
                           )}
                         </div>
                       );
@@ -273,13 +258,12 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-24 max-w-md mx-auto bg-slate-50 shadow-2xl relative overflow-x-hidden">
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" multiple className="hidden" />
 
-      {/* Confirmation Overlay for Duplicates */}
       {showConfirmOverlap && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md"></div>
           <div className="bg-white w-full rounded-[2.5rem] p-8 relative z-10 shadow-2xl animate-in zoom-in duration-300">
             <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6 text-orange-600">
-              <ExclamationTriangleIcon className="w-12 h-12" />
+              <OutlineIcons.ExclamationTriangleIcon className="w-12 h-12" />
             </div>
             <h3 className="text-xl font-black text-center text-slate-800 mb-3">แก้ไขข้อมูล?</h3>
             <p className="text-center text-slate-500 text-sm mb-8 leading-relaxed">
@@ -298,7 +282,7 @@ const App: React.FC = () => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-800/50 rounded-full -mr-20 -mt-20 blur-3xl"></div>
         <div className="relative z-10 text-center space-y-3">
           <div className="inline-flex p-3 bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 mb-2">
-            <MapPinIcon className="w-8 h-8 text-yellow-400" />
+            <OutlineIcons.MapPinIcon className="w-8 h-8 text-yellow-400" />
           </div>
           <h1 className="text-2xl font-black leading-tight tracking-tight px-4">{APP_TITLE}</h1>
           <div className="px-5 py-1.5 bg-yellow-400 text-emerald-950 text-[11px] font-black rounded-full uppercase tracking-[0.15em] shadow-lg border-2 border-emerald-900/10 inline-block">
@@ -311,7 +295,7 @@ const App: React.FC = () => {
         <div className="px-6 -mt-12 animate-in zoom-in duration-500">
            <div className="bg-white p-10 rounded-[3rem] shadow-2xl text-center border border-emerald-50">
               <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600">
-                <CheckCircleIcon className="w-14 h-14" />
+                <OutlineIcons.CheckCircleIcon className="w-14 h-14" />
               </div>
               <h2 className="text-2xl font-black text-slate-800 mb-3">บันทึกสำเร็จ!</h2>
               <p className="text-sm text-slate-500 mb-8 leading-relaxed px-2">{successMessage}</p>
@@ -323,18 +307,16 @@ const App: React.FC = () => {
         </div>
       ) : (
         <main className="px-5 -mt-10 space-y-5 relative z-20">
-          {/* Section: Date */}
           <div className="bg-white p-6 rounded-[2rem] shadow-md border-l-8 border-blue-500 transition-all hover:shadow-lg">
             <div className="flex items-center gap-3 mb-4 font-black text-[11px] text-blue-600 uppercase tracking-widest">
-              <CalendarDaysIcon className="w-5 h-5" /> วันที่ปฏิบัติงาน
+              <OutlineIcons.CalendarDaysIcon className="w-5 h-5" /> วันที่ปฏิบัติงาน
             </div>
             <input type="date" value={state.date} max={today} onChange={(e) => setState(prev => ({ ...prev, date: e.target.value }))} className="w-full p-4 bg-blue-50/50 border-none rounded-2xl font-black text-blue-900 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-lg" />
           </div>
 
-          {/* Section: Location */}
           <div className="bg-white p-6 rounded-[2rem] shadow-md border-l-8 border-orange-500 transition-all hover:shadow-lg">
             <div className="flex items-center gap-3 mb-4 font-black text-[11px] text-orange-600 uppercase tracking-widest">
-              <MapPinIcon className="w-5 h-5" /> จุดเฝ้าระวังไฟป่า
+              <OutlineIcons.MapPinIcon className="w-5 h-5" /> จุดเฝ้าระวังไฟป่า
             </div>
             <select value={state.pointId || ''} onChange={(e) => setState(prev => ({ ...prev, pointId: Number(e.target.value) }))} className="w-full p-5 bg-orange-50/50 border-none rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all appearance-none text-md">
               <option value="">-- เลือกจุดเฝ้าระวัง --</option>
@@ -350,10 +332,9 @@ const App: React.FC = () => {
             </select>
           </div>
 
-          {/* Section: Shift (Visual Update for Sent Items) */}
           <div className="bg-white p-6 rounded-[2rem] shadow-md border-l-8 border-purple-500 transition-all hover:shadow-lg">
             <div className="flex items-center gap-3 mb-4 font-black text-[11px] text-purple-600 uppercase tracking-widest">
-              <ClockIcon className="w-5 h-5" /> ช่วงเวลาตรวจสอบ
+              <OutlineIcons.ClockIcon className="w-5 h-5" /> ช่วงเวลาตรวจสอบ
             </div>
             <div className="grid grid-cols-1 gap-3">
               {Object.values(Shift).map(shift => {
@@ -377,9 +358,9 @@ const App: React.FC = () => {
                       {isSent && <span className="text-[10px] font-bold text-emerald-600 uppercase mt-0.5">✓ ส่งรายงานแล้ว</span>}
                     </div>
                     {isSelected 
-                      ? <CheckCircleIcon className="w-7 h-7" /> 
+                      ? <OutlineIcons.CheckCircleIcon className="w-7 h-7" /> 
                       : isSent 
-                        ? <CheckCircleIcon className="w-7 h-7 text-emerald-500/50" />
+                        ? <OutlineIcons.CheckCircleIcon className="w-7 h-7 text-emerald-500/50" />
                         : <div className="w-7 h-7 rounded-full border-2 border-purple-200"></div>
                     }
                   </button>
@@ -388,22 +369,21 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Section: Photos */}
           <div className="bg-white p-6 rounded-[2rem] shadow-md border-l-8 border-rose-500 transition-all hover:shadow-lg">
             <div className="flex justify-between items-center mb-5 font-black text-[11px] uppercase tracking-widest">
-              <div className="flex items-center gap-3 text-rose-600"><PhotoIcon className="w-5 h-5" /> หลักฐานภาพถ่าย</div>
+              <div className="flex items-center gap-3 text-rose-600"><OutlineIcons.PhotoIcon className="w-5 h-5" /> หลักฐานภาพถ่าย</div>
               <span className={`px-3 py-1 rounded-full text-[10px] ${state.images.length > 0 ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{state.images.length} / 5</span>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {state.images.map((img, idx) => (
                 <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-slate-100 shadow-md">
                   <img src={img} className="w-full h-full object-cover" />
-                  <button onClick={() => setState(prev => ({...prev, images: prev.images.filter((_, i) => i !== idx)}))} className="absolute top-1.5 right-1.5 bg-rose-600 text-white p-1.5 rounded-full shadow-lg"><TrashIcon className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setState(prev => ({...prev, images: prev.images.filter((_, i) => i !== idx)}))} className="absolute top-1.5 right-1.5 bg-rose-600 text-white p-1.5 rounded-full shadow-lg"><OutlineIcons.TrashIcon className="w-3.5 h-3.5" /></button>
                 </div>
               ))}
               {state.images.length < 5 && (
                 <button onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-3 border-dashed border-rose-200 flex flex-col items-center justify-center text-rose-400 bg-rose-50/30 active:bg-rose-100 transition-all group">
-                  <PlusIcon className="w-8 h-8 mb-1 group-hover:scale-110 transition-transform" />
+                  <OutlineIcons.PlusIcon className="w-8 h-8 mb-1 group-hover:scale-110 transition-transform" />
                   <span className="text-[10px] font-black uppercase">ถ่ายรูป</span>
                 </button>
               )}
@@ -412,7 +392,7 @@ const App: React.FC = () => {
 
           <div className="bg-white p-6 rounded-[2rem] shadow-md border-l-8 border-emerald-500 transition-all hover:shadow-lg">
             <div className="flex items-center gap-3 mb-4 font-black text-[11px] text-emerald-600 uppercase tracking-widest">
-              <ChatBubbleLeftRightIcon className="w-5 h-5" /> บันทึกเพิ่มเติม
+              <OutlineIcons.ChatBubbleLeftRightIcon className="w-5 h-5" /> บันทึกเพิ่มเติม
             </div>
             <textarea 
               value={state.notes}
@@ -429,7 +409,7 @@ const App: React.FC = () => {
           >
             {state.isSubmitting ? (
               <div className="flex items-center gap-3">
-                <ArrowPathIcon className="w-7 h-7 animate-spin" />
+                <OutlineIcons.ArrowPathIcon className="w-7 h-7 animate-spin" />
                 <span>กำลังบันทึกข้อมูล...</span>
               </div>
             ) : (
@@ -445,7 +425,7 @@ const App: React.FC = () => {
               onClick={() => setView('login')}
               className="group flex items-center gap-3 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] px-10 py-4 bg-white border border-slate-100 rounded-full shadow-sm hover:text-emerald-600 transition-all active:scale-95"
             >
-              <ChartBarIcon className="w-4 h-4" /> 
+              <OutlineIcons.ChartBarIcon className="w-4 h-4" /> 
               ADMIN DASHBOARD
             </button>
           </div>
