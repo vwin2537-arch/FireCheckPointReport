@@ -1,0 +1,32 @@
+
+export enum Shift {
+  MORNING = 'ภาคเช้า',
+  AFTERNOON = 'ภาคกลางวัน',
+  EVENING = 'ภาคเย็น'
+}
+
+export interface WatchPoint {
+  id: number;
+  name: string;
+}
+
+export interface ReportState {
+  date: string;
+  pointId: number | null;
+  shift: Shift | null;
+  images: string[];
+  notes: string;
+  isSubmitting: boolean;
+}
+
+export interface SubmissionResult {
+  success: boolean;
+  message: string;
+}
+
+export interface SummaryData {
+  pointName: string;
+  shifts: {
+    [key in Shift]?: boolean;
+  };
+}
