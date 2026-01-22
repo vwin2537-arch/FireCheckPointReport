@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { WATCH_POINTS } from './constants';
-import { Shift, ReportState } from './types';
-import { submitReport, fetchDashboardData } from './services/mockDriveService';
+import { Shift, ReportState, Announcement } from './types';
+import { submitReport, fetchDashboardData, fetchAnnouncements, createAnnouncement, deleteAnnouncement } from './services/mockDriveService';
 // @ts-ignore
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import html2canvas from 'html2canvas';
@@ -139,7 +139,14 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-  const today = new Date().toISOString().split('T')[0];
+  // Get today's date dynamically (Local Time)
+  const getToday = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dashboardRef = useRef<HTMLDivElement>(null); // Ref for capture
 
@@ -148,7 +155,7 @@ const App: React.FC = () => {
   const [loginError, setLoginError] = useState(false);
 
   const [state, setState] = useState<ReportState>({
-    date: today,
+    date: getToday(),
     pointId: null,
     shift: null,
     images: [],
@@ -165,16 +172,34 @@ const App: React.FC = () => {
     return name.replace(/(\d+)/, (match) => match.padStart(2, '0'));
   };
 
+  // Ref to track the latest requested date to prevent race conditions
+  const activeRequestDate = useRef<string | null>(null);
+
   const loadDashboardData = useCallback(async (targetDate: string) => {
     if (!isOnline) return; // Skip fetching if offline
+
+    // Set this as the active request
+    activeRequestDate.current = targetDate;
+
     setIsLoadingDashboard(true);
+    // Clear data immediately to avoid showing stale data while loading
+    setFolderStatus([]);
+
     try {
       const data = await fetchDashboardData(targetDate);
-      setFolderStatus(Array.isArray(data) ? data : []);
+
+      // Only update state if this is still the active request
+      if (activeRequestDate.current === targetDate) {
+        setFolderStatus(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
-      setFolderStatus([]);
+      if (activeRequestDate.current === targetDate) {
+        setFolderStatus([]);
+      }
     } finally {
-      setIsLoadingDashboard(false);
+      if (activeRequestDate.current === targetDate) {
+        setIsLoadingDashboard(false);
+      }
     }
   }, [isOnline]);
 
@@ -780,7 +805,7 @@ const App: React.FC = () => {
               <Icon name="CalendarDaysIcon" className="w-4 h-4" /> วันที่ปฏิบัติงาน
             </div>
             <div className="relative">
-              <input type="date" value={state.date} max={today} onChange={(e) => setState(prev => ({ ...prev, date: e.target.value }))} className="w-full p-4.5 bg-slate-50 dark:bg-slate-700/50 border-2 border-transparent focus:border-blue-500 dark:focus:border-blue-500 rounded-[1.8rem] font-black text-blue-900 dark:text-blue-100 text-lg outline-none transition-all cursor-pointer dark:scheme-dark" />
+              <input type="date" value={state.date} max={getToday()} onChange={(e) => setState(prev => ({ ...prev, date: e.target.value }))} className="w-full p-4.5 bg-slate-50 dark:bg-slate-700/50 border-2 border-transparent focus:border-blue-500 dark:focus:border-blue-500 rounded-[1.8rem] font-black text-blue-900 dark:text-blue-100 text-lg outline-none transition-all cursor-pointer dark:scheme-dark" />
               <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-300 dark:text-blue-500">
                 <Icon name="PencilSquareIcon" className="w-5 h-5" />
               </div>

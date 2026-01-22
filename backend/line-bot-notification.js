@@ -678,3 +678,74 @@ function testMorningNotification() {
 function testDailySummary() {
     sendDailySummary();
 }
+
+// =============================================================================
+// API Part: สำหรับเชื่อมต่อกับ Dashboard Web App (doGet)
+// =============================================================================
+
+/**
+ * รองรับ GET Request จากหน้าเว็บ Dashboard
+ * คืนค่า JSON สถานะการส่งรายงานของวันที่ระบุ
+ */
+function doGet(e) {
+    try {
+        const params = e.parameter;
+        // รับค่า date จากพารามิเตอร์ หรือใช้วันปัจจุบัน
+        const dateStr = params.date || Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
+
+        // ดึงข้อมูลรายจุด
+        const data = getDashboardDataForWeb(dateStr);
+
+        return ContentService.createTextOutput(JSON.stringify(data))
+            .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+        const errorResponse = { status: 'error', message: error.toString() };
+        return ContentService.createTextOutput(JSON.stringify(errorResponse))
+            .setMimeType(ContentService.MimeType.JSON);
+    }
+}
+
+/**
+ * ดึงข้อมูลสถานะรายจุดสำหรับ Dashboard
+ * คืนค่า Array ของ { pointName: "ชื่อจุด", shift: "กะ" } เฉพาะที่ส่งแล้ว
+ */
+function getDashboardDataForWeb(dateStr) {
+    const folder = DriveApp.getFolderById(FOLDER_ID);
+    const pointFolders = folder.getFolders();
+    const result = [];
+
+    while (pointFolders.hasNext()) {
+        const pointFolder = pointFolders.next();
+        const rawPointName = pointFolder.getName();
+
+        // กรองเฉพาะโฟลเดอร์ที่มีคำว่า "จุดเฝ้าระวังที่"
+        if (!rawPointName.includes('จุดเฝ้าระวังที่')) continue;
+
+        // ปรับชื่อให้เป็น format มาตรฐาน (มีเลข 2 หลัก) ให้ตรงกับ Frontend
+        // เช่น "จุดเฝ้าระวังที่ 1" -> "จุดเฝ้าระวังที่ 01"
+        const pointName = rawPointName.replace(/(\d+)/, (match) => match.padStart(2, '0'));
+
+        const dateFolders = pointFolder.getFoldersByName(dateStr);
+        if (dateFolders.hasNext()) {
+            const dateFolder = dateFolders.next();
+
+            // ตรวจสอบทั้ง 3 กะ
+            [SHIFTS.MORNING, SHIFTS.AFTERNOON, SHIFTS.EVENING].forEach(shift => {
+                const shiftFolders = dateFolder.getFoldersByName(shift);
+                if (shiftFolders.hasNext()) {
+                    const shiftFolder = shiftFolders.next();
+                    // ถ้ามีไฟล์ข้างใน ถือว่าส่งแล้ว
+                    if (shiftFolder.getFiles().hasNext()) {
+                        result.push({
+                            pointName: pointName,
+                            shift: shift
+                        });
+                    }
+                }
+            });
+        }
+    }
+
+    return result;
+}
