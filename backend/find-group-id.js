@@ -1,63 +1,99 @@
-// -----------------------------------------------------------------------------
-// วิธีหา GROUP ID (สำหรับ Messaging API)
-// -----------------------------------------------------------------------------
-// 1. นำโค้ดนี้ไปวางใน Google Apps Script (ไฟล์ใหม่)
-// 2. กด Deploy -> New Deployment -> เลือก Type เป็น "Web app"
-//    - Execute as: Me
-//    - Who has access: Anyone
-// 3. ก๊อปปี้ URL ที่ได้ (Web App URL)
-// 4. เอาไปใส่ใน LINE Developers Console > Messaging API > Webhook URL
-// 5. กดเปิด "Use Webhook"
-// 6. ลองพิมพ์ข้อความอะไรก็ได้ลงในกลุ่มไลน์ที่มีบอทอยู่
-// 7. กลับมาดูที่ Google Sheet (หรือ Log) โค้ดนี้จะบันทึก Group ID ให้ครับ
+// =============================================================================
+// วิธีหา GROUP ID - Version 3 (Push API Method)
+// =============================================================================
+// วิธีใหม่: แทนที่จะ Reply กลับในกลุ่มใหม่ จะใช้ Push API ส่ง Group ID ไปกลุ่มทดสอบแทน!
+// =============================================================================
+
+const CHANNEL_ACCESS_TOKEN = '0aukhwekDqlNNEE2/6vXSA0zU+zG1XnCGbwvWfeJfRyb7Ax8bFGtfGaLL9nxlGckV0aYXJglTceespVYuffxUMvcbnfLy4O2gtbXWlsyc2nXxAdDgTaf9IXZ0yLnYP/tezONF+9bDCiZnnJOGql0cQdB04t89/1O/w1cDnyilFU=';
+
+// Group ID กลุ่มทดสอบ (ที่ใช้งานได้)
+const TEST_GROUP_ID = 'C67a8652605c9755ea9c85e8e7cc0504b';
 
 function doPost(e) {
-    const data = JSON.parse(e.postData.contents);
-    const event = data.events[0];
+    try {
+        console.log('Received webhook');
 
-    if (event.type === 'message') {
-        const source = event.source;
-        let id = '';
-        let type = '';
+        const data = JSON.parse(e.postData.contents);
 
-        if (source.type === 'group') {
-            id = source.groupId;
-            type = 'Group ID';
-        } else if (source.type === 'room') {
-            id = source.roomId;
-            type = 'Room ID';
-        } else {
-            id = source.userId;
-            type = 'User ID';
+        if (!data.events || data.events.length === 0) {
+            console.log('No events');
+            return ContentService.createTextOutput('OK');
         }
 
-        // บันทึกลง Log (กดดูที่เมนู Executions ใน GAS)
-        console.log(`TYPE: ${type}`);
-        console.log(`ID: ${id}`);
+        const event = data.events[0];
 
-        // (Optional) ถ้าอยากให้บอทตอบกลับบอก ID เลย ให้ Uncomment บรรทัดล่างนี้
-        // replyMessage(event.replyToken, `ID ของกลุ่มนี้คือ: ${id}`);
+        if (event.type === 'message') {
+            const source = event.source;
+            let id = '';
+            let type = '';
+
+            if (source.type === 'group') {
+                id = source.groupId;
+                type = 'Group ID';
+            } else if (source.type === 'room') {
+                id = source.roomId;
+                type = 'Room ID';
+            } else {
+                id = source.userId;
+                type = 'User ID';
+            }
+
+            console.log('TYPE: ' + type);
+            console.log('ID: ' + id);
+
+            // บันทึกลง Properties เพื่อดึงใช้ทีหลัง
+            PropertiesService.getScriptProperties().setProperty('LAST_GROUP_ID', id);
+            PropertiesService.getScriptProperties().setProperty('LAST_TYPE', type);
+
+            // ส่ง Push ไปกลุ่มทดสอบแทน reply (เพราะ reply ไม่ทำงาน)
+            pushToTestGroup('🔔 พบ ID ใหม่!\n\nType: ' + type + '\nID: ' + id);
+        }
+
+        return ContentService.createTextOutput('OK');
+
+    } catch (error) {
+        console.log('ERROR: ' + error.toString());
+        pushToTestGroup('❌ Error: ' + error.toString());
+        return ContentService.createTextOutput('Error');
     }
-
-    return ContentService.createTextOutput(JSON.stringify({ status: 'ok' })).setMimeType(ContentService.MimeType.JSON);
 }
 
-// ฟังก์ชันตอบกลับ (ถ้าต้องการใช้)
-function replyMessage(replyToken, text) {
-    const CHANNEL_ACCESS_TOKEN = 'ใส่_Token_ชั่วคราวตรงนี้ถ้าจะเทส';
-    const url = 'https://api.line.me/v2/bot/message/reply';
-    UrlFetchApp.fetch(url, {
-        'headers': {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'Authorization': 'Bearer ' + CHANNEL_ACCESS_TOKEN,
-        },
+// ส่งข้อความไปกลุ่มทดสอบ
+function pushToTestGroup(message) {
+    const url = 'https://api.line.me/v2/bot/message/push';
+    const options = {
         'method': 'post',
+        'headers': {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + CHANNEL_ACCESS_TOKEN
+        },
         'payload': JSON.stringify({
-            'replyToken': replyToken,
+            'to': TEST_GROUP_ID,
             'messages': [{
                 'type': 'text',
-                'text': text,
-            }],
+                'text': message
+            }]
         }),
-    });
+        'muteHttpExceptions': true
+    };
+
+    UrlFetchApp.fetch(url, options);
+}
+
+// รันด้วยมือเพื่อดู Group ID ล่าสุดที่บันทึกไว้
+function showLastGroupId() {
+    const id = PropertiesService.getScriptProperties().getProperty('LAST_GROUP_ID');
+    const type = PropertiesService.getScriptProperties().getProperty('LAST_TYPE');
+    console.log('Last saved: ' + type + ' = ' + id);
+
+    if (id) {
+        pushToTestGroup('📋 Group ID ล่าสุดที่บันทึก:\n' + id);
+    } else {
+        console.log('No saved Group ID');
+    }
+}
+
+// ทดสอบส่งข้อความไปกลุ่มทดสอบ
+function testPush() {
+    pushToTestGroup('✅ Test Push API - ทำงานปกติ!');
 }
