@@ -30,6 +30,9 @@ const App: React.FC = () => {
   });
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // PM2.5 Air Quality State
+  const [airQuality, setAirQuality] = useState<{ pm25: number; level: string; color: string; station: string; updateTime: string } | null>(null);
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -46,6 +49,47 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('pending_reports', JSON.stringify(pendingReports));
   }, [pendingReports]);
+
+  // Fetch PM2.5 from Air4Thai
+  useEffect(() => {
+    const fetchAirQuality = async () => {
+      try {
+        const res = await fetch('http://air4thai.pcd.go.th/forappV2/getAQI_JSON.php');
+        const data = await res.json();
+        // Find stations in Kanchanaburi area (or nearest)
+        const stations = data.stations || [];
+        const kanchanaburiStation = stations.find((s: any) =>
+          s.areaTH?.includes('กาญจน') || s.nameTH?.includes('กาญจน')
+        ) || stations.find((s: any) => s.areaTH?.includes('นครปฐม')) || stations[0];
+
+        if (kanchanaburiStation?.AQILast) {
+          const pm25Value = parseFloat(kanchanaburiStation.AQILast.PM25?.value) || 0;
+          const colorId = parseInt(kanchanaburiStation.AQILast.PM25?.color_id) || parseInt(kanchanaburiStation.AQILast.AQI?.color_id) || 1;
+          const updateTime = kanchanaburiStation.AQILast.time || '--:--';
+          const levels = [
+            { id: 1, level: 'ดีมาก', color: '#3b82f6' },
+            { id: 2, level: 'ดี', color: '#22c55e' },
+            { id: 3, level: 'ปานกลาง', color: '#eab308' },
+            { id: 4, level: 'เริ่มมีผล', color: '#f97316' },
+            { id: 5, level: 'มีผลต่อสุขภาพ', color: '#ef4444' },
+          ];
+          const matched = levels.find(l => l.id === colorId) || levels[2];
+          setAirQuality({
+            pm25: pm25Value,
+            level: matched.level,
+            color: matched.color,
+            station: kanchanaburiStation.nameTH || 'Unknown',
+            updateTime: updateTime
+          });
+        }
+      } catch (e) {
+        console.error('Air quality fetch error:', e);
+      }
+    };
+    fetchAirQuality();
+    const interval = setInterval(fetchAirQuality, 15 * 60 * 1000); // Refresh every 15 mins (API is free)
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const loadIcons = async () => {
@@ -272,6 +316,60 @@ const App: React.FC = () => {
     { name: 'เย็น', Sent: folderStatus.filter(f => f.shift === Shift.EVENING).length, Goal: WATCH_POINTS.length },
   ];
 
+  // Trophy Badge Component
+  const TrophyBadge = () => {
+    let trophy = { emoji: '❌', label: 'ยังไม่ได้', color: 'from-gray-500 to-gray-700', glow: '', show: false };
+    if (progressPercentage >= 90) {
+      trophy = { emoji: '🏆', label: 'ทองคำ', color: 'from-yellow-400 to-yellow-600', glow: 'animate-pulse shadow-yellow-400/50', show: true };
+    } else if (progressPercentage >= 80) {
+      trophy = { emoji: '🥈', label: 'เงิน', color: 'from-slate-300 to-slate-500', glow: '', show: true };
+    } else if (progressPercentage >= 70) {
+      trophy = { emoji: '🥉', label: 'ทองแดง', color: 'from-amber-600 to-amber-800', glow: '', show: true };
+    }
+
+    if (!trophy.show) {
+      return (
+        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r from-gray-600 to-gray-800 text-white/60 shadow-lg border border-white/10">
+          <span className="text-3xl opacity-50">🎯</span>
+          <div className="text-left">
+            <span className="text-[9px] uppercase font-black tracking-widest opacity-60 block">รางวัลประจำวัน</span>
+            <span className="text-sm font-bold opacity-80">ต้อง ≥70%</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r ${trophy.color} text-white shadow-xl ${trophy.glow} border border-white/20`}>
+        <span className="text-4xl drop-shadow-lg">{trophy.emoji}</span>
+        <div className="text-left">
+          <span className="text-[9px] uppercase font-black tracking-widest opacity-80 block">รางวัลประจำวัน</span>
+          <span className="text-lg font-black tracking-tight">{trophy.label}</span>
+        </div>
+      </div>
+    );
+  };
+
+
+  // Air Quality Widget Component
+  const AirQualityWidget = () => {
+    if (!airQuality) return null;
+    return (
+      <div className="arcade-stat p-4 flex items-center gap-3">
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg"
+          style={{ backgroundColor: airQuality.color }}
+        >
+          {airQuality.aqi}
+        </div>
+        <div>
+          <p className="text-[9px] text-gray-400 uppercase font-black tracking-widest">🌫️ PM2.5</p>
+          <p className="arcade-title text-lg" style={{ color: airQuality.color }}>{airQuality.level}</p>
+        </div>
+      </div>
+    );
+  };
+
   const ThemeToggle = () => (
     <button
       onClick={toggleTheme}
@@ -359,44 +457,66 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div ref={dashboardRef} className="p-1 -m-1 rounded-[2.5rem] bg-slate-50 dark:bg-slate-900 transition-colors">
-        {/* Stats Grid */}
-        <div className="bg-gradient-to-br from-emerald-800 via-emerald-900 to-slate-900 text-white p-8 rounded-[3rem] shadow-2xl shadow-emerald-900/20 mb-8 relative overflow-hidden ring-1 ring-white/10 dark:ring-white/5">
+      <div ref={dashboardRef} className="p-1 -m-1 rounded-[2.5rem] bg-slate-900 pixel-pattern transition-colors">
+        {/* Arcade Stats Grid */}
+        <div className="arcade-card text-white p-8 mb-8 relative">
+          {/* Dynamic Trophy Background - only shows when >= 70% */}
+          {progressPercentage >= 70 && (
+            <div
+              className="trophy-bg"
+              style={{
+                filter: progressPercentage >= 90
+                  ? 'drop-shadow(0 0 30px rgba(251, 191, 36, 0.5))' // Gold glow
+                  : progressPercentage >= 80
+                    ? 'drop-shadow(0 0 20px rgba(156, 163, 175, 0.4))' // Silver glow
+                    : 'drop-shadow(0 0 15px rgba(180, 83, 9, 0.3))' // Bronze glow
+              }}
+            >
+              {progressPercentage >= 90 ? '🏆' : progressPercentage >= 80 ? '🥈' : '🥉'}
+            </div>
+          )}
+
           <div className="relative z-10">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
               <div>
-                <h2 className="text-3xl font-black mb-1 tracking-tight">ภาพรวมการเฝ้าระวัง</h2>
-                <p className="text-emerald-300/80 text-sm font-medium">ข้อมูลประจำวันที่ {new Date(state.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                <h2 className="arcade-title text-xl md:text-2xl mb-2">ภาพรวมการเฝ้าระวัง</h2>
+                <p className="text-blue-300 text-sm font-bold">📅 {new Date(state.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
               </div>
-              <div className="bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 text-right min-w-[120px]">
-                <span className="text-[10px] uppercase font-black tracking-widest opacity-60 block mb-1">ความคืบหน้า</span>
-                <span className="text-3xl font-black text-yellow-400 drop-shadow-sm">{progressPercentage}%</span>
+              <div className="flex items-center gap-3 flex-wrap">
+                <TrophyBadge />
+                <div className="arcade-stat px-5 py-3 text-right min-w-[120px]">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-gray-400 block mb-1">ความคืบหน้า</span>
+                  <span className="arcade-title text-2xl">{progressPercentage}%</span>
+                </div>
               </div>
             </div>
 
+
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white/5 backdrop-blur-sm p-5 rounded-[2rem] border border-white/10 hover:bg-white/10 transition-colors group">
-                <p className="text-[10px] opacity-70 uppercase font-black mb-2 tracking-widest group-hover:text-emerald-300 transition-colors">ดำเนินการแล้ว (ครั้ง)</p>
+              <div className="arcade-stat p-5 hover:scale-105 transition-transform cursor-default group">
+                <p className="text-[10px] text-gray-400 uppercase font-black mb-2 tracking-widest">⚡ ดำเนินการแล้ว</p>
                 <div className="flex items-end gap-2">
-                  <p className="text-4xl font-black text-emerald-300 group-hover:scale-110 transition-transform origin-left">{currentTotalOperations}</p>
-                  <p className="text-sm font-bold opacity-40 mb-1.5">/ {totalOperationsGoal}</p>
+                  <p className="arcade-title text-4xl text-cyan-400">{currentTotalOperations}</p>
+                  <p className="text-sm font-bold text-gray-500 mb-1.5">/ {totalOperationsGoal}</p>
                 </div>
               </div>
-              <div className="bg-white/5 backdrop-blur-sm p-5 rounded-[2rem] border border-white/10 hover:bg-white/10 transition-colors group">
-                <p className="text-[10px] opacity-70 uppercase font-black mb-2 tracking-widest group-hover:text-yellow-300 transition-colors">จุดที่รายงานแล้ว</p>
+              <div className="arcade-stat p-5 hover:scale-105 transition-transform cursor-default group">
+                <p className="text-[10px] text-gray-400 uppercase font-black mb-2 tracking-widest">📍 จุดที่รายงานแล้ว</p>
                 <div className="flex items-end gap-2">
-                  <p className="text-4xl font-black text-yellow-300 group-hover:scale-110 transition-transform origin-left">{new Set(folderStatus.map(f => f.pointName)).size}</p>
-                  <p className="text-sm font-bold opacity-40 mb-1.5">/ {WATCH_POINTS.length}</p>
+                  <p className="arcade-title text-4xl text-yellow-400">{new Set(folderStatus.map(f => f.pointName)).size}</p>
+                  <p className="text-sm font-bold text-gray-500 mb-1.5">/ {WATCH_POINTS.length}</p>
                 </div>
               </div>
-              <div className="bg-white/5 backdrop-blur-sm p-5 rounded-[2rem] border border-white/10 hover:bg-white/10 transition-colors group">
-                <p className="text-[10px] opacity-70 uppercase font-black mb-2 tracking-widest group-hover:text-white transition-colors">จุดที่ส่งครบ 3 ช่วง</p>
+              <div className="arcade-stat p-5 hover:scale-105 transition-transform cursor-default group">
+                <p className="text-[10px] text-gray-400 uppercase font-black mb-2 tracking-widest">⭐ ส่งครบ 3 ช่วง</p>
                 <div className="flex items-end gap-2">
-                  <p className="text-4xl font-black text-white group-hover:scale-110 transition-transform origin-left">{pointsWithCompleteShifts}</p>
-                  <p className="text-sm font-bold opacity-40 mb-1.5">จุด</p>
+                  <p className="arcade-title text-4xl text-green-400">{pointsWithCompleteShifts}</p>
+                  <p className="text-sm font-bold text-gray-500 mb-1.5">จุด</p>
                 </div>
               </div>
             </div>
+
 
             <div className="space-y-2">
               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-60 px-2">
@@ -532,13 +652,82 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <header className="relative bg-emerald-900 dark:bg-slate-800 text-white pt-16 pb-24 px-8 rounded-b-[4.5rem] shadow-2xl overflow-hidden transition-colors duration-500">
+      <header
+        className="relative text-white pt-16 pb-24 px-8 rounded-b-[4.5rem] shadow-2xl overflow-hidden transition-all duration-700"
+        style={{
+          background: airQuality
+            ? airQuality.pm25 <= 15
+              ? 'linear-gradient(135deg, #065f46 0%, #047857 50%, #10b981 100%)' // Deep green - excellent
+              : airQuality.pm25 <= 25
+                ? 'linear-gradient(135deg, #166534 0%, #15803d 50%, #22c55e 100%)' // Green - good
+                : airQuality.pm25 <= 37.5
+                  ? 'linear-gradient(135deg, #854d0e 0%, #a16207 50%, #ca8a04 100%)' // Yellow/amber - moderate
+                  : airQuality.pm25 <= 75
+                    ? 'linear-gradient(135deg, #9a3412 0%, #c2410c 50%, #ea580c 100%)' // Orange - unhealthy for sensitive
+                    : 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%)' // Red - unhealthy
+            : 'linear-gradient(135deg, #065f46 0%, #047857 50%, #10b981 100%)' // Default green
+        }}
+      >
         <div className="relative z-10 text-center">
           <Icon name="FireIcon" className="w-16 h-16 text-yellow-400 mx-auto mb-4 drop-shadow-lg" />
           <h1 className="text-3xl font-black leading-tight tracking-tight mb-4 drop-shadow-md">ระบบเฝ้าระวังไฟป่า</h1>
-          <div className="inline-flex items-center gap-2 px-6 py-2 bg-yellow-400 text-emerald-950 text-xs font-black rounded-full uppercase tracking-widest shadow-lg shadow-black/20">
+          <div className="inline-flex items-center gap-2 px-6 py-2 bg-yellow-400 text-emerald-950 text-xs font-black rounded-full uppercase tracking-widest shadow-lg shadow-black/20 mb-4">
             <Icon name="MapPinIcon" className="w-3.5 h-3.5" /> อุทยานแห่งชาติเอราวัณ
           </div>
+          {/* Enhanced PM2.5 Air Quality Widget */}
+          {airQuality && (
+            <div className="flex justify-center mt-4">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 min-w-[280px]">
+                {/* Main Info Row */}
+                <div className="flex items-center gap-4 mb-3">
+                  {/* Animated Icon based on level */}
+                  <div className="relative">
+                    <div
+                      className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${airQuality.pm25 <= 25 ? 'animate-pulse' : airQuality.pm25 > 50 ? 'animate-bounce' : ''
+                        }`}
+                      style={{ backgroundColor: airQuality.color + '30' }}
+                    >
+                      {airQuality.pm25 <= 15 ? '🌿' :
+                        airQuality.pm25 <= 25 ? '😊' :
+                          airQuality.pm25 <= 37.5 ? '😐' :
+                            airQuality.pm25 <= 75 ? '😷' : '⚠️'}
+                    </div>
+                    {airQuality.pm25 > 50 && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-ping"></div>
+                    )}
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black" style={{ color: airQuality.color }}>{airQuality.pm25.toFixed(1)}</span>
+                      <span className="text-white/50 text-[10px] font-bold">μg/m³</span>
+                    </div>
+                    <p className="text-sm font-bold" style={{ color: airQuality.color }}>{airQuality.level}</p>
+                  </div>
+
+                  {/* Update Time & Location */}
+                  <div className="text-right">
+                    <p className="text-[8px] text-white/40 uppercase font-black tracking-widest">🌫️ PM2.5</p>
+                    <p className="text-white/60 text-xs">กาญจนบุรี</p>
+                    <p className="text-white/40 text-[9px]">🕐 {airQuality.updateTime} น.</p>
+                  </div>
+                </div>
+
+                {/* Health Advice - using PM2.5 μg/m³ thresholds */}
+                <div
+                  className="text-[10px] font-bold text-center py-2 px-3 rounded-lg"
+                  style={{ backgroundColor: airQuality.color + '20', color: airQuality.color }}
+                >
+                  {airQuality.pm25 <= 15 ? '💪 เหมาะสำหรับกิจกรรมกลางแจ้งทุกประเภท' :
+                    airQuality.pm25 <= 25 ? '🏃 ออกกำลังกายกลางแจ้งได้ปกติ' :
+                      airQuality.pm25 <= 37.5 ? '🚶 กลุ่มเสี่ยงควรลดกิจกรรมกลางแจ้ง' :
+                        airQuality.pm25 <= 75 ? '😷 ควรสวมหน้ากากเมื่ออยู่กลางแจ้ง' :
+                          '🏠 หลีกเลี่ยงกิจกรรมกลางแจ้ง'}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-800 dark:bg-emerald-900 rounded-full -mr-20 -mt-20 opacity-40 blur-2xl"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-800 dark:bg-emerald-900 rounded-full -ml-16 -mb-16 opacity-20 blur-xl"></div>
