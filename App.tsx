@@ -56,7 +56,7 @@ const App: React.FC = () => {
       try {
         // Use CORS proxy to handle HTTP -> HTTPS mixed content issue
         const apiUrl = 'http://air4thai.pcd.go.th/forappV2/getAQI_JSON.php';
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
 
         const res = await fetch(proxyUrl);
         if (!res.ok) throw new Error('API fetch failed');
