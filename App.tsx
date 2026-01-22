@@ -658,26 +658,6 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Pop-up Loading Overlay (Compact) */}
-      {state.isSubmitting && (
-        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-[280px] rounded-[3rem] p-8 shadow-2xl text-center flex flex-col items-center animate-fade-in border border-emerald-50 dark:border-slate-700 transition-colors">
-            {/* Spinning Logic based on Online/Offline */}
-            <div className="relative mb-6">
-              {!isOnline ? (
-                <Icon name="SignalSlashIcon" className="w-14 h-14 text-slate-400 animate-bounce" />
-              ) : (
-                <>
-                  <div className="w-20 h-20 bg-yellow-400/20 rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-ping"></div>
-                  <Icon name="FireIcon" type="solid" className="w-14 h-14 text-yellow-500 relative z-10 animate-bounce" />
-                </>
-              )}
-            </div>
-            <h2 className="text-xl font-black text-slate-800 dark:text-white mb-2">{!isOnline ? 'บันทึกแบบออฟไลน์' : 'กำลังส่งรายงาน'}</h2>
-            <p className="text-slate-400 dark:text-slate-500 text-[11px] font-bold uppercase tracking-widest animate-pulse">โปรดรอสักครู่...</p>
-          </div>
-        </div>
-      )}
 
       {showConfirmOverlap && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
@@ -916,7 +896,7 @@ const App: React.FC = () => {
             <button onClick={() => setView('login')} className="flex items-center gap-3 text-[11px] font-black text-slate-400 dark:text-slate-500 hover:text-emerald-700 dark:hover:text-emerald-400 uppercase tracking-[0.2em] py-4 px-10 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full shadow-lg transition-all active:scale-95 group">
               <Icon name="LockClosedIcon" className="w-4 h-4 group-hover:animate-bounce" /> เข้าสู่ระบบเจ้าหน้าที่
             </button>
-            <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold tracking-widest opacity-50">v2.0 Clean Update</span>
+            <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold tracking-widest opacity-50">v2.1 Popup Fixed</span>
           </div>
         </main>
       )}
