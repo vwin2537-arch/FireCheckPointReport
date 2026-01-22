@@ -50,11 +50,17 @@ const App: React.FC = () => {
     localStorage.setItem('pending_reports', JSON.stringify(pendingReports));
   }, [pendingReports]);
 
-  // Fetch PM2.5 from Air4Thai
+  // Fetch PM2.5 from Air4Thai (using CORS proxy for HTTPS compatibility)
   useEffect(() => {
     const fetchAirQuality = async () => {
       try {
-        const res = await fetch('http://air4thai.pcd.go.th/forappV2/getAQI_JSON.php');
+        // Use CORS proxy to handle HTTP -> HTTPS mixed content issue
+        const apiUrl = 'http://air4thai.pcd.go.th/forappV2/getAQI_JSON.php';
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error('API fetch failed');
+
         const data = await res.json();
         // Find stations in Kanchanaburi area (or nearest)
         const stations = data.stations || [];
@@ -84,6 +90,8 @@ const App: React.FC = () => {
         }
       } catch (e) {
         console.error('Air quality fetch error:', e);
+        // Don't crash - just don't show the widget
+        setAirQuality(null);
       }
     };
     fetchAirQuality();
