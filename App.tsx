@@ -896,7 +896,7 @@ const App: React.FC = () => {
             <button onClick={() => setView('login')} className="flex items-center gap-3 text-[11px] font-black text-slate-400 dark:text-slate-500 hover:text-emerald-700 dark:hover:text-emerald-400 uppercase tracking-[0.2em] py-4 px-10 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full shadow-lg transition-all active:scale-95 group">
               <Icon name="LockClosedIcon" className="w-4 h-4 group-hover:animate-bounce" /> เข้าสู่ระบบเจ้าหน้าที่
             </button>
-            <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold tracking-widest opacity-50">v2.1 Popup Fixed</span>
+            <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold tracking-widest opacity-50">v2.2 Cache Fix</span>
           </div>
         </main>
       )}

@@ -1,24 +1,28 @@
-const CACHE_NAME = 'fire-watch-v1';
-const ASSETS = [
-    '/',
-    '/index.html',
-    '/index.tsx',
-    '/App.tsx',
-    '/types.ts',
-    '/constants.ts',
-    '/services/mockDriveService.ts'
-];
+const CACHE_NAME = 'fire-watch-cleanup-v2';
 
 self.addEventListener('install', (event) => {
+    // Activate immediately
+    self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    console.log('Deleting cache:', cacheName);
+                    return caches.delete(cacheName);
+                })
+            );
+        }).then(() => {
+            // Take control of all clients immediately
+            return self.clients.claim();
+        })
     );
 });
 
 self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
-        })
-    );
+    // Pass through to network - do not cache anything
+    // This allows the app to load fresh assets every time
+    return;
 });
