@@ -885,40 +885,6 @@ const App: React.FC = () => {
             <textarea value={state.notes} onChange={(e) => setState(prev => ({ ...prev, notes: e.target.value }))} placeholder="ระบุเหตุการณ์ปกติ หรือปัญหาที่พบ..." className="w-full p-5 bg-slate-50 dark:bg-slate-700/50 border-2 border-transparent focus:border-emerald-500 dark:focus:border-emerald-500 rounded-[1.8rem] text-sm font-medium min-h-[140px] outline-none transition-all resize-none shadow-inner dark:text-white dark:placeholder:text-slate-500" />
           </div>
 
-          {/* Full Screen Progress Overlay (Disabled) */}
-          {false && (
-            <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center p-8 animate-fade-in">
-              <div className="w-full max-w-xs bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-2xl border border-white/20 text-center relative overflow-hidden">
-                {/* Background Decor */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600"></div>
-
-                <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/50 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600 dark:text-emerald-400 relative">
-                  <Icon name="CloudArrowUpIcon" className="w-10 h-10 animate-bounce" />
-                  <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full animate-ping"></div>
-                </div>
-
-                <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">กำลังส่งรายงาน</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">กรุณารอสักครู่...</p>
-
-                {state.uploadProgress !== undefined && (
-                  <div className="relative">
-                    <div className="flex justify-between text-xs font-bold mb-2 text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                      <span>Progress</span>
-                      <span>{state.uploadProgress.toFixed(0)}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
-                      <div
-                        className="bg-gradient-to-r from-emerald-500 to-emerald-400 h-full transition-all duration-300 ease-out relative"
-                        style={{ width: `${state.uploadProgress}%` }}
-                      >
-                        <div className="absolute inset-0 bg-white/30 w-full h-full animate-[shimmer_1s_infinite] skew-x-12"></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           <button onClick={handleSubmitAttempt} disabled={state.isSubmitting} className={`relative w-full py-6 rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-4 shadow-2xl active:scale-[0.97] transition-all overflow-hidden ${state.isSubmitting ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white shadow-emerald-200 dark:shadow-emerald-900/20 hover:shadow-emerald-300'}`}>
 
