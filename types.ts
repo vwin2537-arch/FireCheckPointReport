@@ -17,6 +17,7 @@ export interface ReportState {
   images: string[];
   notes: string;
   isSubmitting: boolean;
+  uploadProgress?: number;
 }
 
 export interface SubmissionResult {

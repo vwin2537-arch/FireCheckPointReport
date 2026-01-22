@@ -12,7 +12,7 @@ export const submitReport = async (
   notes: string,
   selectedDate: string
 ): Promise<SubmissionResult> => {
-  
+
   try {
     const payload = {
       parentFolderId: TARGET_FOLDER_ID,
@@ -33,9 +33,6 @@ export const submitReport = async (
     });
 
     if (!response.ok) throw new Error('Network response was not ok');
-
-    // รอให้ระบบ Google Drive ทำการ Index โฟลเดอร์ใหม่สักครู่
-    await new Promise(resolve => setTimeout(resolve, 3500));
 
     return {
       success: true,

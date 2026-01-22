@@ -5,6 +5,7 @@ import { submitReport, fetchDashboardData } from './services/mockDriveService';
 // @ts-ignore
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import html2canvas from 'html2canvas';
+import { compressImages } from './utils/imageCompression';
 
 // Fallback icons with loading state
 const IconPlaceholder = ({ className }: { className?: string }) => (
@@ -13,6 +14,17 @@ const IconPlaceholder = ({ className }: { className?: string }) => (
 
 const App: React.FC = () => {
   const [icons, setIcons] = useState<any>(null);
+
+  // Initial State for form reset
+  const INITIAL_STATE: ReportState = {
+    date: new Date().toISOString().split('T')[0],
+    pointId: null,
+    shift: null,
+    images: [],
+    notes: '',
+    isSubmitting: false,
+    uploadProgress: 0
+  };
   const [solidIcons, setSolidIcons] = useState<any>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -231,7 +243,7 @@ const App: React.FC = () => {
   const executeSubmit = async () => {
     if (!state.shift || !state.pointId) return;
     setShowConfirmOverlap(false);
-    setState(prev => ({ ...prev, isSubmitting: true }));
+    setState(prev => ({ ...prev, isSubmitting: true, uploadProgress: 0 }));
 
     const point = WATCH_POINTS.find(p => p.id === state.pointId);
     const formattedName = formatPointName(point?.name || '');
@@ -251,20 +263,46 @@ const App: React.FC = () => {
       setTimeout(() => {
         setPendingReports(prev => [...prev, offlineReport]);
         setSuccessMessage('บันทึกข้อมูลลงเครื่องแล้ว (รอสัญญาณเน็ตเพื่อส่ง)');
-        setState({ date: state.date, pointId: null, shift: null, images: [], notes: '', isSubmitting: false });
+        setState({ ...INITIAL_STATE, date: state.date });
       }, 1000);
       return;
     }
 
-    const result = await submitReport(formattedName, state.shift, state.images, state.notes, state.date);
+    try {
+      // 1. Compress Images
+      setState(prev => ({ ...prev, uploadProgress: 10 }));
+      const compressedImages = await compressImages(state.images, { maxWidth: 1920, quality: 0.85 }, (progress) => {
+        // Map compression progress to 10-30% of total progress
+        setState(prev => ({ ...prev, uploadProgress: 10 + (progress * 0.2) }));
+      });
 
-    if (result.success) {
-      setSuccessMessage(result.message);
-      setState({ date: state.date, pointId: null, shift: null, images: [], notes: '', isSubmitting: false });
-      loadDashboardData(state.date);
-    } else {
-      alert(result.message);
-      setState(prev => ({ ...prev, isSubmitting: false }));
+      // 2. Submit Report
+      setState(prev => ({ ...prev, uploadProgress: 40 })); // Compression done, starting upload
+
+      // Note: GAS doesn't support upload progress, so we simulate progress for the remaining 60%
+      const progressInterval = setInterval(() => {
+        setState(prev => {
+          if (prev.uploadProgress >= 90) return prev;
+          return { ...prev, uploadProgress: prev.uploadProgress + 5 };
+        });
+      }, 1000);
+
+      const result = await submitReport(formattedName, state.shift, compressedImages, state.notes, state.date);
+
+      clearInterval(progressInterval);
+      setState(prev => ({ ...prev, uploadProgress: 100 }));
+
+      if (result.success) {
+        setSuccessMessage(result.message);
+        setState({ ...INITIAL_STATE, date: state.date });
+        loadDashboardData(state.date);
+      } else {
+        alert(result.message);
+        setState(prev => ({ ...prev, isSubmitting: false, uploadProgress: 0 }));
+      }
+    } catch (error) {
+      alert('เกิดข้อผิดพลาดในการส่งข้อมูล');
+      setState(prev => ({ ...prev, isSubmitting: false, uploadProgress: 0 }));
     }
   };
 
@@ -845,6 +883,20 @@ const App: React.FC = () => {
               <Icon name="ChatBubbleLeftRightIcon" className="w-4 h-4" /> บันทึกเพิ่มเติม
             </div>
             <textarea value={state.notes} onChange={(e) => setState(prev => ({ ...prev, notes: e.target.value }))} placeholder="ระบุเหตุการณ์ปกติ หรือปัญหาที่พบ..." className="w-full p-5 bg-slate-50 dark:bg-slate-700/50 border-2 border-transparent focus:border-emerald-500 dark:focus:border-emerald-500 rounded-[1.8rem] text-sm font-medium min-h-[140px] outline-none transition-all resize-none shadow-inner dark:text-white dark:placeholder:text-slate-500" />
+          </div>
+
+          <div className="mb-4">
+            {state.isSubmitting && state.uploadProgress !== undefined && (
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-4 overflow-hidden shadow-inner">
+                <div
+                  className="bg-emerald-500 h-full transition-all duration-300 ease-out flex items-center justify-center text-[8px] font-bold text-white relative overflow-hidden"
+                  style={{ width: `${state.uploadProgress}%` }}
+                >
+                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                  {state.uploadProgress.toFixed(0)}%
+                </div>
+              </div>
+            )}
           </div>
 
           <button onClick={handleSubmitAttempt} disabled={state.isSubmitting} className={`w-full py-6 rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-4 shadow-2xl active:scale-[0.97] transition-all ${state.isSubmitting ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-80' : 'bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white shadow-emerald-200 dark:shadow-emerald-900/20 hover:shadow-emerald-300'}`}>
