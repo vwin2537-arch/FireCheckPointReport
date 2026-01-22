@@ -885,8 +885,8 @@ const App: React.FC = () => {
             <textarea value={state.notes} onChange={(e) => setState(prev => ({ ...prev, notes: e.target.value }))} placeholder="ระบุเหตุการณ์ปกติ หรือปัญหาที่พบ..." className="w-full p-5 bg-slate-50 dark:bg-slate-700/50 border-2 border-transparent focus:border-emerald-500 dark:focus:border-emerald-500 rounded-[1.8rem] text-sm font-medium min-h-[140px] outline-none transition-all resize-none shadow-inner dark:text-white dark:placeholder:text-slate-500" />
           </div>
 
-          {/* Full Screen Progress Overlay */}
-          {state.isSubmitting && (
+          {/* Full Screen Progress Overlay (Disabled) */}
+          {false && (
             <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center p-8 animate-fade-in">
               <div className="w-full max-w-xs bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-2xl border border-white/20 text-center relative overflow-hidden">
                 {/* Background Decor */}
@@ -920,12 +920,30 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <button onClick={handleSubmitAttempt} disabled={state.isSubmitting} className={`w-full py-6 rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-4 shadow-2xl active:scale-[0.97] transition-all ${state.isSubmitting ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-80' : 'bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white shadow-emerald-200 dark:shadow-emerald-900/20 hover:shadow-emerald-300'}`}>
-            {state.isSubmitting ? (
-              <><Icon name="ArrowPathIcon" className="w-7 h-7 animate-spin" /> {isOnline ? 'กำลังส่งรายงาน...' : 'บันทึกออฟไลน์...'}</>
-            ) : (
-              <><Icon name="CloudArrowUpIcon" className="w-7 h-7" /> {isOnline ? 'ส่งรายงาน' : 'บันทึกลงเครื่อง'}</>
+          <button onClick={handleSubmitAttempt} disabled={state.isSubmitting} className={`relative w-full py-6 rounded-[2.5rem] font-black text-2xl flex items-center justify-center gap-4 shadow-2xl active:scale-[0.97] transition-all overflow-hidden ${state.isSubmitting ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white shadow-emerald-200 dark:shadow-emerald-900/20 hover:shadow-emerald-300'}`}>
+
+            {/* Progress Background */}
+            {state.isSubmitting && state.uploadProgress !== undefined && (
+              <div
+                className="absolute inset-0 bg-emerald-100 dark:bg-emerald-900/30 transition-all duration-300 ease-out"
+                style={{ width: `${state.uploadProgress}%` }}
+              />
             )}
+
+            <div className="relative z-10 flex items-center gap-4">
+              {state.isSubmitting ? (
+                <>
+                  <Icon name="ArrowPathIcon" className="w-7 h-7 animate-spin" />
+                  <span>
+                    {state.uploadProgress !== undefined
+                      ? `กำลังส่ง... ${state.uploadProgress.toFixed(0)}%`
+                      : (isOnline ? 'กำลังส่งรายงาน...' : 'บันทึกออฟไลน์...')}
+                  </span>
+                </>
+              ) : (
+                <><Icon name="CloudArrowUpIcon" className="w-7 h-7" /> {isOnline ? 'ส่งรายงาน' : 'บันทึกลงเครื่อง'}</>
+              )}
+            </div>
           </button>
 
           <div className="pt-4 pb-16 flex justify-center">
