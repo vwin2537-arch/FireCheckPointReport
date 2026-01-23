@@ -77,8 +77,8 @@ const App: React.FC = () => {
         // Find stations in Kanchanaburi area (or nearest)
         const stations = data.stations || [];
         const kanchanaburiStation = stations.find((s: any) =>
-          s.areaTH?.includes('กาญจน') || s.nameTH?.includes('กาญจน')
-        ) || stations.find((s: any) => s.areaTH?.includes('นครปฐม')) || stations[0];
+          s.areaTH?.includes('กาญจนบุรี') || s.nameTH?.includes('กาญจนบุรี')
+        );
 
         if (kanchanaburiStation?.AQILast) {
           const pm25Value = parseFloat(kanchanaburiStation.AQILast.PM25?.value) || 0;
@@ -96,7 +96,7 @@ const App: React.FC = () => {
             pm25: pm25Value,
             level: matched.level,
             color: matched.color,
-            station: kanchanaburiStation.nameTH || 'Unknown',
+            station: kanchanaburiStation.areaTH || kanchanaburiStation.nameTH || 'Unknown',
             updateTime: updateTime
           });
         }
@@ -760,7 +760,7 @@ const App: React.FC = () => {
                   {/* Update Time & Location */}
                   <div className="text-right">
                     <p className="text-[8px] text-white/40 uppercase font-black tracking-widest">🌫️ PM2.5</p>
-                    <p className="text-white/60 text-xs truncate max-w-[100px]">{airQuality.station}</p>
+                    <p className="text-white/60 text-xs leading-tight">{airQuality.station}</p>
                     <p className="text-white/40 text-[9px]">🕐 {airQuality.updateTime} น.</p>
                   </div>
                 </div>

@@ -7,7 +7,7 @@
 // ตั้งค่า: ใส่ข้อมูลของท่านตรงนี้
 // -----------------------------------------------------------------------------
 const CHANNEL_ACCESS_TOKEN = 'jkm/3cMQ/X81XujTHd9HgKbc83QgEeYtBoTl+to2jUNr6Uz/oTTq8sTHJrIZPuniV0aYXJglTceespVYuffxUMvcbnfLy4O2gtbXWlsyc2nYJT1DfZB5QlM0t2a1c5x7Ci/a0k5AtwOd2rZuiPj9qwdB04t89/1O/w1cDnyilFU=';
-const GROUP_ID = 'Cdef795904fc1641517572a042144ffe8';
+const GROUP_ID = 'C181762f3539730de0594034db0f508de';
 const FOLDER_ID = '1tSGasMDHMNyfudAc4GGJqyc7XPXXH-hQ'; // โฟลเดอร์ที่เก็บรูป
 
 // จำนวนจุดเฝ้าระวังทั้งหมด
@@ -675,8 +675,28 @@ function testMorningNotification() {
 /**
  * ทดสอบส่งสรุปรายวัน (รันด้วยมือ)
  */
+/**
+ * ทดสอบส่งสรุปรายวัน (รันด้วยมือ)
+ */
 function testDailySummary() {
     sendDailySummary();
+}
+
+// =============================================================================
+// API Part: Webhook & Dashboard
+// =============================================================================
+
+// =============================================================================
+// API Part: Webhook & Dashboard
+// =============================================================================
+
+function doPost(e) {
+    // รับ Webhook Request แต่ไม่ทำการตอบกลับ (Silent Mode)
+    // เพื่อป้องกันไม่ให้บอทรบกวนการสนทนาในกลุ่ม
+    // แต่ยังคงสถานะ online สำหรับ LINE Platform
+
+    // (ถ้าต้องการเปิด Debug เพื่อหา ID อีกครั้ง ให้แก้ code ตรงนี้)
+    return ContentService.createTextOutput(JSON.stringify({ status: 'ok' })).setMimeType(ContentService.MimeType.JSON);
 }
 
 // =============================================================================
@@ -765,4 +785,54 @@ function getDashboardDataForWeb(dateStr) {
     cache.put(cacheKey, JSON.stringify(result), 600);
 
     return result;
+}
+
+// =============================================================================
+// Debugging Function
+// =============================================================================
+
+function debugLineConnection() {
+    const url = 'https://api.line.me/v2/bot/message/push';
+    const payload = {
+        to: GROUP_ID,
+        messages: [{
+            type: 'text',
+            text: '✅ Connection Test: เชื่อมต่อสำเร็จ! (Token และ Group ID ถูกต้อง)'
+        }]
+    };
+
+    const options = {
+        method: 'post',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + CHANNEL_ACCESS_TOKEN
+        },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+    };
+
+    try {
+        const response = UrlFetchApp.fetch(url, options);
+        console.log('Debug Response: ' + response.getContentText());
+    } catch (e) {
+        console.log('Debug Error: ' + e.toString());
+    }
+}
+
+function checkBotToken() {
+    const url = 'https://api.line.me/v2/bot/info';
+    const options = {
+        method: 'get',
+        headers: {
+            'Authorization': 'Bearer ' + CHANNEL_ACCESS_TOKEN
+        },
+        muteHttpExceptions: true
+    };
+
+    try {
+        const response = UrlFetchApp.fetch(url, options);
+        console.log('Bot Info Response: ' + response.getContentText());
+    } catch (e) {
+        console.log('Check Token Error: ' + e.toString());
+    }
 }

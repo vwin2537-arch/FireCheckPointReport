@@ -60,3 +60,58 @@ export const fetchDashboardData = async (date: string): Promise<any[]> => {
     return [];
   }
 };
+
+// --- Services for Announcements (Hybrid Mode) ---
+
+export const fetchAnnouncements = async (): Promise<any[]> => {
+  try {
+    // 1. Try fetching from GAS (Future implementation response expectation)
+    // const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=getAnnouncements&t=${Date.now()}`);
+    // if (response.ok) return await response.json();
+
+    // 2. Fallback: LocalStorage (For immediate testing)
+    const localData = localStorage.getItem('announcements');
+    return localData ? JSON.parse(localData) : [];
+  } catch (e) {
+    console.error("Fetch announcements error:", e);
+    return [];
+  }
+};
+
+export const createAnnouncement = async (announcement: any): Promise<{ success: boolean; message: string }> => {
+  try {
+    // 1. Try sending to GAS (Mocking the call structure)
+    /*
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'createAnnouncement',
+        ...announcement
+      }),
+    });
+    */
+
+    // 2. Fallback: Save to LocalStorage (For immediate testing)
+    const current = await fetchAnnouncements();
+    const updated = [announcement, ...current];
+    localStorage.setItem('announcements', JSON.stringify(updated));
+
+    return { success: true, message: 'ลงประกาศเรียบร้อยแล้ว (Local Mode)' };
+  } catch (e) {
+    console.error("Create announcement error:", e);
+    return { success: false, message: 'เกิดข้อผิดพลาดในการลงประกาศ' };
+  }
+};
+
+export const deleteAnnouncement = async (id: string): Promise<boolean> => {
+  try {
+    // Local delete
+    const current = await fetchAnnouncements();
+    const updated = current.filter((a: any) => a.id !== id);
+    localStorage.setItem('announcements', JSON.stringify(updated));
+    return true;
+  } catch (e) {
+    return false;
+  }
+};

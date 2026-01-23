@@ -20,6 +20,15 @@ export interface ReportState {
   uploadProgress?: number;
 }
 
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  level: 'info' | 'warning' | 'critical';
+  timestamp: string;
+  isActive: boolean;
+}
+
 export interface SubmissionResult {
   success: boolean;
   message: string;
