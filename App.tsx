@@ -760,7 +760,7 @@ const App: React.FC = () => {
                   {/* Update Time & Location */}
                   <div className="text-right">
                     <p className="text-[8px] text-white/40 uppercase font-black tracking-widest">🌫️ PM2.5</p>
-                    <p className="text-white/60 text-xs">กาญจนบุรี</p>
+                    <p className="text-white/60 text-xs truncate max-w-[100px]">{airQuality.station}</p>
                     <p className="text-white/40 text-[9px]">🕐 {airQuality.updateTime} น.</p>
                   </div>
                 </div>
