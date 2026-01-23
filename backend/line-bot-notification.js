@@ -710,7 +710,21 @@ function doGet(e) {
  * ดึงข้อมูลสถานะรายจุดสำหรับ Dashboard
  * คืนค่า Array ของ { pointName: "ชื่อจุด", shift: "กะ" } เฉพาะที่ส่งแล้ว
  */
+/**
+ * ดึงข้อมูลสถานะรายจุดสำหรับ Dashboard (พร้อมระบบ Caching 10 นาที)
+ * คืนค่า Array ของ { pointName: "ชื่อจุด", shift: "กะ" } เฉพาะที่ส่งแล้ว
+ */
 function getDashboardDataForWeb(dateStr) {
+    // 1. ลองดึงจาก Cache ก่อน
+    const cache = CacheService.getScriptCache();
+    const cacheKey = 'dashboard_' + dateStr;
+    const cached = cache.get(cacheKey);
+
+    if (cached) {
+        return JSON.parse(cached);
+    }
+
+    // 2. ถ้าไม่มีใน Cache ให้ดึงจาก Drive (ช้าหน่อย)
     const folder = DriveApp.getFolderById(FOLDER_ID);
     const pointFolders = folder.getFolders();
     const result = [];
@@ -746,6 +760,9 @@ function getDashboardDataForWeb(dateStr) {
             });
         }
     }
+
+    // 3. บันทึกลง Cache ไว้ใช้งานครั้งหน้า (เก็บไว้ 600 วินาที = 10 นาที)
+    cache.put(cacheKey, JSON.stringify(result), 600);
 
     return result;
 }
