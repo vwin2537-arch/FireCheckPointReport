@@ -77,90 +77,79 @@ const App: React.FC = () => {
     localStorage.setItem('pending_reports', JSON.stringify(pendingReports));
   }, [pendingReports]);
 
-  // Fetch PM2.5 from OpenAQ API (covers GISTDA data, no CORS issues)
+  // Fetch PM2.5 from Air4Thai (Thailand official source)
   useEffect(() => {
     const fetchAirQuality = async () => {
-      // OpenAQ API - query by coordinates near Erawan National Park (Kanchanaburi)
-      // Coordinates: 14.3°N, 99.1°E (approximate center of Erawan area)
-      // Radius: 50km to cover Si Sawat, Mueang, and Sai Yok districts
-      const openAqUrl = 'https://api.openaq.org/v2/latest?coordinates=14.3,99.1&radius=50000&parameter=pm25&limit=5';
+      const apiUrl = 'http://air4thai.pcd.go.th/forappV2/getAQI_JSON.php';
       
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000);
-        
-        const res = await fetch(openAqUrl, {
-          signal: controller.signal,
-          headers: {
-            'Accept': 'application/json'
-          }
-        });
-        clearTimeout(timeout);
-        
-        if (!res.ok) throw new Error(`OpenAQ API error: ${res.status}`);
-        
-        const data = await res.json();
-        const results = data?.results || [];
-        
-        if (results.length > 0) {
-          // Get the measurement with the most recent timestamp
-          const latest = results.reduce((prev: any, current: any) => {
-            return new Date(current.date.utc) > new Date(prev.date.utc) ? current : prev;
+      // Multiple CORS proxies to try
+      const proxyUrls = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${apiUrl}`
+      ];
+      
+      for (const proxyUrl of proxyUrls) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 3000);
+          
+          const res = await fetch(proxyUrl, { 
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
           });
+          clearTimeout(timeout);
           
-          const pm25Value = latest.measurements?.find((m: any) => m.parameter === 'pm25')?.value 
-                         || latest.value 
-                         || 0;
+          if (!res.ok) continue;
           
-          // Determine level based on PM2.5 value (Thai standard)
-          // 0-15: Excellent, 16-25: Good, 26-37.5: Moderate, 37.6-75: Unhealthy for sensitive, >75: Unhealthy
-          let level, color;
-          if (pm25Value <= 15) {
-            level = 'ดีมาก';
-            color = '#3b82f6';
-          } else if (pm25Value <= 25) {
-            level = 'ดี';
-            color = '#22c55e';
-          } else if (pm25Value <= 37.5) {
-            level = 'ปานกลาง';
-            color = '#eab308';
-          } else if (pm25Value <= 75) {
-            level = 'เริ่มมีผล';
-            color = '#f97316';
-          } else {
-            level = 'มีผลต่อสุขภาพ';
-            color = '#ef4444';
+          const data = await res.json();
+          if (!data?.stations) continue;
+          
+          // Find Kanchanaburi station
+          const stations = data.stations;
+          const kanchanaburiStation = stations.find((s: any) =>
+            s.areaTH?.includes('กาญจนบุรี') || s.nameTH?.includes('กาญจนบุรี')
+          );
+
+          if (kanchanaburiStation?.AQILast) {
+            const pm25Value = parseFloat(kanchanaburiStation.AQILast.PM25?.value) || 0;
+            const colorId = parseInt(kanchanaburiStation.AQILast.PM25?.color_id) || parseInt(kanchanaburiStation.AQILast.AQI?.color_id) || 1;
+            const updateTime = kanchanaburiStation.AQILast.time || '--:--';
+            const levels = [
+              { id: 1, level: 'ดีมาก', color: '#3b82f6' },
+              { id: 2, level: 'ดี', color: '#22c55e' },
+              { id: 3, level: 'ปานกลาง', color: '#eab308' },
+              { id: 4, level: 'เริ่มมีผล', color: '#f97316' },
+              { id: 5, level: 'มีผลต่อสุขภาพ', color: '#ef4444' },
+            ];
+            const matched = levels.find(l => l.id === colorId) || levels[2];
+            setAirQuality({
+              pm25: pm25Value,
+              level: matched.level,
+              color: matched.color,
+              station: kanchanaburiStation.areaTH || kanchanaburiStation.nameTH || 'กาญจนบุรี',
+              updateTime: updateTime
+            });
+            return;
           }
-          
-          const updateTime = latest.date?.local 
-            ? new Date(latest.date.local).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-            : new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-          
-          setAirQuality({
-            pm25: pm25Value,
-            level: level,
-            color: color,
-            station: latest.location || 'กาญจนบุรี (OpenAQ)',
-            updateTime: updateTime
-          });
-        } else {
-          throw new Error('No PM2.5 data available');
+        } catch (e) {
+          console.log(`Proxy failed, trying next...`);
+          continue;
         }
-      } catch (e) {
-        console.warn('OpenAQ fetch failed, using fallback:', e);
-        // Use fallback data
-        setAirQuality({
-          pm25: 15,
-          level: 'ดี',
-          color: '#22c55e',
-          station: 'กาญจนบุรี (Offline)',
-          updateTime: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        });
       }
+      
+      // All failed - use fallback
+      setAirQuality({
+        pm25: 15,
+        level: 'ดี',
+        color: '#22c55e',
+        station: 'กาญจนบุรี',
+        updateTime: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+      });
     };
     
     fetchAirQuality();
-    const interval = setInterval(fetchAirQuality, 15 * 60 * 1000); // Refresh every 15 mins
+    const interval = setInterval(fetchAirQuality, 15 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
