@@ -1,0 +1,37 @@
+{
+  "name": "ระบบเฝ้าระวังไฟป่าเอราวัณ",
+  "short_name": "Erawan Fire Watch",
+  "description": "ระบบรายงานและติดตามการเฝ้าระวังไฟป่าอุทยานแห่งชาติเอราวัณ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#065f46",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "lang": "th",
+  "dir": "ltr",
+  "shortcuts": [
+    {
+      "name": "รายงานใหม่",
+      "short_name": "รายงาน",
+      "description": "สร้างรายงานการเฝ้าระวังใหม่",
+      "url": "/",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

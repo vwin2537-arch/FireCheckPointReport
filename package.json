@@ -1,7 +1,7 @@
 {
   "name": "erawan-fire-surveillance-system",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@heroicons/react": "^2.1.5",
     "html2canvas": "^1.4.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

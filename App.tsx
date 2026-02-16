@@ -2,6 +2,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { WATCH_POINTS } from './constants';
 import { Shift, ReportState, Announcement } from './types';
 import { submitReport, fetchDashboardData, fetchAnnouncements, createAnnouncement, deleteAnnouncement } from './services/mockDriveService';
+import AnnouncementModal from './components/AnnouncementModal';
+import FireIncidentModal from './components/FireIncidentModalNew';
+import HotspotPage from './components/HotspotPage';
+import * as OutlineIcons from '@heroicons/react/24/outline';
+import * as SolidIcons from '@heroicons/react/24/solid';
 // @ts-ignore
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import html2canvas from 'html2canvas';
@@ -13,7 +18,7 @@ const IconPlaceholder = ({ className }: { className?: string }) => (
 );
 
 const App: React.FC = () => {
-  const [icons, setIcons] = useState<any>(null);
+  // Announcement & Modal State
 
   // Initial State for form reset
   const INITIAL_STATE: ReportState = {
@@ -25,7 +30,17 @@ const App: React.FC = () => {
     isSubmitting: false,
     uploadProgress: 0
   };
-  const [solidIcons, setSolidIcons] = useState<any>(null);
+  const [showAnnouncements, setShowAnnouncements] = useState(false);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [annTitle, setAnnTitle] = useState('');
+  const [annMessage, setAnnMessage] = useState('');
+  const [annLevel, setAnnLevel] = useState<'info' | 'warning' | 'critical'>('info');
+  const [annExpiresAt, setAnnExpiresAt] = useState('');
+  const [annImageDataUrl, setAnnImageDataUrl] = useState<string | null>(null);
+  const [isCreatingAnnouncement, setIsCreatingAnnouncement] = useState(false);
+  const [showFireModal, setShowFireModal] = useState(false);
+  const [fireIncidents, setFireIncidents] = useState<any[]>([]);
+  const [showHotspotPage, setShowHotspotPage] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -112,19 +127,20 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const loadIcons = async () => {
-      try {
-        const [outline, solid] = await Promise.all([
-          import('https://esm.sh/@heroicons/react@2.1.1/24/outline'),
-          import('https://esm.sh/@heroicons/react@2.1.1/24/solid')
-        ]);
-        setIcons(outline);
-        setSolidIcons(solid);
-      } catch (err) {
-        console.error("Icon loading error:", err);
-      }
+    const loadAnnouncements = async () => {
+      const data = await fetchAnnouncements();
+      setAnnouncements(data);
     };
-    loadIcons();
+    loadAnnouncements();
+  }, []);
+
+  useEffect(() => {
+    const loadIncidents = async () => {
+      const { fetchFireIncidents } = await import('./services/mockDriveService');
+      const data = await fetchFireIncidents();
+      setFireIncidents(data);
+    };
+    loadIncidents();
   }, []);
 
   useEffect(() => {
@@ -355,11 +371,39 @@ const App: React.FC = () => {
     }
   };
 
-  const Icon = ({ name, type = 'outline', className = "w-6 h-6" }: { name: string, type?: 'outline' | 'solid', className?: string }) => {
-    const iconSet = type === 'outline' ? icons : solidIcons;
+  const Icon = ({ name, type = 'outline', className = "w-6 h-6", ...props }: { name: string, type?: 'outline' | 'solid', className?: string, [key: string]: any }) => {
+    const iconSet: any = type === 'outline' ? OutlineIcons : SolidIcons;
     if (!iconSet || !iconSet[name]) return <IconPlaceholder className={className} />;
     const TargetIcon = iconSet[name];
-    return <TargetIcon className={className} />;
+    return <TargetIcon className={className} {...props} />;
+  };
+
+  const handleAnnouncementPosterUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => setAnnImageDataUrl(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleCreateAnnouncement = async () => {
+    if (!annTitle.trim() || !annMessage.trim()) { alert('กรุณากรอกหัวข้อและรายละเอียดประกาศ'); return; }
+    setIsCreatingAnnouncement(true);
+    try {
+      const expiresAtIso = annExpiresAt ? new Date(annExpiresAt).toISOString() : null;
+      const result = await createAnnouncement({ title: annTitle.trim(), message: annMessage.trim(), level: annLevel, expiresAt: expiresAtIso, image: annImageDataUrl || undefined });
+      alert(result.message);
+      setAnnTitle(''); setAnnMessage(''); setAnnLevel('info'); setAnnExpiresAt(''); setAnnImageDataUrl(null);
+      const data = await fetchAnnouncements(); setAnnouncements(data);
+    } finally { setIsCreatingAnnouncement(false); }
+  };
+
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (!confirm('ต้องการลบประกาศนี้ใช่หรือไม่?')) return;
+    const success = await deleteAnnouncement(id);
+    if (!success) { alert('ลบประกาศไม่สำเร็จ'); return; }
+    const data = await fetchAnnouncements(); setAnnouncements(data);
   };
 
   // Dashboard calculations
@@ -431,7 +475,7 @@ const App: React.FC = () => {
           className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg"
           style={{ backgroundColor: airQuality.color }}
         >
-          {airQuality.aqi}
+          {airQuality.pm25}
         </div>
         <div>
           <p className="text-[9px] text-gray-400 uppercase font-black tracking-widest">🌫️ PM2.5</p>
@@ -562,8 +606,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <div className="arcade-stat p-5 hover:scale-105 transition-transform cursor-default group">
                 <p className="text-[10px] text-gray-400 uppercase font-black mb-2 tracking-widest">⚡ ดำเนินการแล้ว</p>
@@ -587,7 +629,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-
 
             <div className="space-y-2">
               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-60 px-2">
@@ -642,6 +683,34 @@ const App: React.FC = () => {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* Announcement Management Section */}
+      <div className="mt-8 mb-8 p-1 rounded-3xl bg-gradient-to-r from-indigo-500 to-purple-600 shadow-2xl">
+        <div className="bg-slate-900 rounded-[1.4rem] p-6 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10"><Icon name="MegaphoneIcon" className="w-32 h-32" /></div>
+          <div className="flex justify-between items-center mb-6 relative z-10">
+            <h3 className="text-xl font-bold flex items-center gap-2"><span className="bg-indigo-500 p-1.5 rounded-lg"><Icon name="DocumentTextIcon" className="w-5 h-5" /></span> จัดการประกาศ</h3>
+            <span className="text-xs font-black bg-white/10 px-3 py-1 rounded-full border border-white/10">ทั้งหมด {announcements.length} รายการ</span>
+          </div>
+          <div className="relative z-10 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label className="block text-xs font-bold text-slate-300 mb-2">หัวข้อประกาศ</label><input value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} placeholder="เช่น แจ้งเตือนเฝ้าระวังไฟป่า" className="w-full p-4 rounded-2xl bg-white/10 border border-white/10 outline-none focus:ring-2 focus:ring-indigo-400 font-bold text-white placeholder:text-slate-500" /></div>
+              <div><label className="block text-xs font-bold text-slate-300 mb-2">ระดับความสำคัญ</label><select value={annLevel} onChange={(e) => setAnnLevel(e.target.value as any)} className="w-full p-4 rounded-2xl bg-white/10 border border-white/10 outline-none focus:ring-2 focus:ring-indigo-400 font-bold text-white"><option value="info" className="text-black">ข่าวสาร</option><option value="warning" className="text-black">สำคัญ</option><option value="critical" className="text-black">ด่วนที่สุด</option></select></div>
+            </div>
+            <div><label className="block text-xs font-bold text-slate-300 mb-2">รายละเอียดประกาศ</label><textarea value={annMessage} onChange={(e) => setAnnMessage(e.target.value)} placeholder="พิมพ์รายละเอียดประกาศ..." className="w-full p-4 rounded-2xl bg-white/10 border border-white/10 outline-none focus:ring-2 focus:ring-indigo-400 font-medium min-h-[140px] text-white placeholder:text-slate-500" /></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-2">อัปโหลดโปสเตอร์ (ถ้ามี)</label>
+                <label className="flex items-center gap-3 p-4 rounded-2xl bg-white/10 border border-dashed border-white/20 cursor-pointer hover:bg-white/15 transition-colors"><Icon name="PhotoIcon" className="w-6 h-6 text-indigo-300" /><span className="text-sm font-bold text-slate-300">{annImageDataUrl ? 'เปลี่ยนรูป' : 'เลือกรูปภาพ'}</span><input type="file" accept="image/*" onChange={handleAnnouncementPosterUpload} className="hidden" /></label>
+                {annImageDataUrl && (<div className="mt-3 relative"><img src={annImageDataUrl} alt="preview" className="w-full max-h-40 object-contain rounded-xl border border-white/10" /><button onClick={() => setAnnImageDataUrl(null)} className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full text-xs hover:bg-red-500"><Icon name="XMarkIcon" className="w-4 h-4" /></button></div>)}
+              </div>
+              <div><label className="block text-xs font-bold text-slate-300 mb-2">วันหมดอายุประกาศ (ถ้ามี)</label><input type="datetime-local" value={annExpiresAt} onChange={(e) => setAnnExpiresAt(e.target.value)} className="w-full p-4 rounded-2xl bg-white/10 border border-white/10 outline-none focus:ring-2 focus:ring-indigo-400 font-bold text-white" /></div>
+            </div>
+            <button onClick={handleCreateAnnouncement} disabled={isCreatingAnnouncement} className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">{isCreatingAnnouncement ? 'กำลังลงประกาศ...' : 'ลงประกาศใหม่'}</button>
+          </div>
+          {announcements.length > 0 && (<div className="mt-6 relative z-10 space-y-3"><h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">ประกาศทั้งหมด</h4>{announcements.map((ann) => (<div key={ann.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-start justify-between gap-3"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-1"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${ann.level === 'critical' ? 'bg-red-500/20 text-red-400' : ann.level === 'warning' ? 'bg-orange-500/20 text-orange-400' : 'bg-blue-500/20 text-blue-400'}`}>{ann.level === 'critical' ? 'ด่วน' : ann.level === 'warning' ? 'สำคัญ' : 'ข่าวสาร'}</span>{ann.expiresAt && <span className="text-[9px] text-slate-500">หมดอายุ: {new Date(ann.expiresAt).toLocaleDateString('th-TH')}</span>}</div><p className="font-bold text-sm truncate">{ann.title}</p><p className="text-xs text-slate-400 truncate">{ann.message}</p></div><button onClick={() => handleDeleteAnnouncement(ann.id)} className="shrink-0 p-2 bg-red-500/20 hover:bg-red-500/40 rounded-xl text-red-400 transition-colors" title="ลบประกาศ"><Icon name="TrashIcon" className="w-4 h-4" /></button></div>))}</div>)}
         </div>
       </div>
     </div>
@@ -704,7 +773,7 @@ const App: React.FC = () => {
       )}
 
       <header
-        className="relative text-white pt-16 pb-24 px-8 rounded-b-[4.5rem] shadow-2xl overflow-hidden transition-all duration-700"
+        className="relative text-white pt-16 pb-16 px-8 rounded-b-[4.5rem] shadow-2xl overflow-hidden transition-all duration-700"
         style={{
           background: airQuality
             ? airQuality.pm25 <= 15
@@ -727,7 +796,7 @@ const App: React.FC = () => {
           </div>
           {/* Enhanced PM2.5 Air Quality Widget */}
           {airQuality && (
-            <div className="flex justify-center mt-4">
+            <div className="flex justify-center mt-4 mb-8">
               <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 min-w-[280px]">
                 {/* Main Info Row */}
                 <div className="flex items-center gap-4 mb-3">
@@ -782,10 +851,28 @@ const App: React.FC = () => {
         </div>
         <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-800 dark:bg-emerald-900 rounded-full -mr-20 -mt-20 opacity-40 blur-2xl"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-800 dark:bg-emerald-900 rounded-full -ml-16 -mb-16 opacity-20 blur-xl"></div>
+        {/* Action Buttons Row */}
+        <div className="px-4 mt-8 relative z-40 grid grid-cols-3 gap-2">
+          <button onClick={() => setShowFireModal(true)} className="bg-white dark:bg-slate-800 rounded-[1.6rem] p-3 shadow-lg dark:shadow-slate-900/50 flex flex-col items-center gap-1.5 active:scale-95 transition-all border border-slate-100 dark:border-slate-700 hover:border-red-200 dark:hover:border-red-500/30 group">
+            <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform">🔥</div>
+            <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 leading-tight text-center">แจ้งเหตุไฟป่า</span>
+          </button>
+          <button onClick={() => setShowHotspotPage(true)} className="bg-white dark:bg-slate-800 rounded-[1.6rem] p-3 shadow-lg dark:shadow-slate-900/50 flex flex-col items-center gap-1.5 active:scale-95 transition-all border border-slate-100 dark:border-slate-700 hover:border-orange-200 dark:hover:border-orange-500/30 group">
+            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform">🛰️</div>
+            <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 leading-tight text-center">ดู Hotspot</span>
+          </button>
+          <button onClick={() => setShowAnnouncements(true)} className="relative bg-white dark:bg-slate-800 rounded-[1.6rem] p-3 shadow-lg dark:shadow-slate-900/50 flex flex-col items-center gap-1.5 active:scale-95 transition-all border border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-500/30 group">
+            <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center"><Icon name="MegaphoneIcon" className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /></div>
+            {announcements.length > 0 && (
+              <span className="absolute top-1.5 right-1.5 z-20 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-black leading-4 text-center border-2 border-white dark:border-slate-800 shadow">{announcements.length > 9 ? '9+' : announcements.length}</span>
+            )}
+            <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 leading-tight text-center">ประกาศ</span>
+          </button>
+        </div>
       </header>
 
       {successMessage ? (
-        <div className="px-6 -mt-16 animate-fade-in relative z-30">
+        <div className="px-6 -mt-2 animate-fade-in relative z-30">
           <div className="bg-white dark:bg-slate-800 p-10 rounded-[3.5rem] shadow-2xl dark:shadow-slate-900/50 text-center border border-emerald-50 dark:border-slate-700 transition-colors">
             <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-8">
               {isOnline ? <Icon name="CheckCircleIcon" className="w-14 h-14" /> : <Icon name="DevicePhoneMobileIcon" className="w-14 h-14" />}
@@ -799,7 +886,7 @@ const App: React.FC = () => {
           </div>
         </div>
       ) : (
-        <main className="px-6 -mt-16 space-y-6 relative z-30">
+        <main className="px-6 -mt-2 space-y-6 relative z-30">
           <div className="group bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-xl dark:shadow-slate-900/50 border-b-4 border-blue-500/10 dark:border-blue-500/20 hover:border-blue-500/40 dark:hover:border-blue-500/40 transition-all duration-300">
             <div className="flex items-center gap-2 mb-4 font-black text-[11px] text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em]">
               <Icon name="CalendarDaysIcon" className="w-4 h-4" /> วันที่ปฏิบัติงาน
@@ -921,10 +1008,15 @@ const App: React.FC = () => {
             <button onClick={() => setView('login')} className="flex items-center gap-3 text-[11px] font-black text-slate-400 dark:text-slate-500 hover:text-emerald-700 dark:hover:text-emerald-400 uppercase tracking-[0.2em] py-4 px-10 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full shadow-lg transition-all active:scale-95 group">
               <Icon name="LockClosedIcon" className="w-4 h-4 group-hover:animate-bounce" /> เข้าสู่ระบบเจ้าหน้าที่
             </button>
-            <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold tracking-widest opacity-50">v2.2 Cache Fix</span>
+            <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold tracking-widest opacity-50">v2.3.0</span>
           </div>
         </main>
       )}
+
+      {/* Modals */}
+      <AnnouncementModal isOpen={showAnnouncements} onClose={() => setShowAnnouncements(false)} announcements={announcements} />
+      <FireIncidentModal isOpen={showFireModal} onClose={() => setShowFireModal(false)} onSubmitSuccess={async () => { setShowFireModal(false); const { fetchFireIncidents } = await import('./services/mockDriveService'); setFireIncidents(await fetchFireIncidents()); }} />
+      <HotspotPage isOpen={showHotspotPage} onClose={() => setShowHotspotPage(false)} />
     </div>
   );
 };
