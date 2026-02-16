@@ -41,6 +41,7 @@ const App: React.FC = () => {
   const [showFireModal, setShowFireModal] = useState(false);
   const [fireIncidents, setFireIncidents] = useState<any[]>([]);
   const [showHotspotPage, setShowHotspotPage] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -1035,7 +1036,10 @@ const App: React.FC = () => {
             <button onClick={() => setView('login')} className="flex items-center gap-3 text-[11px] font-black text-slate-400 dark:text-slate-500 hover:text-emerald-700 dark:hover:text-emerald-400 uppercase tracking-[0.2em] py-4 px-10 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full shadow-lg transition-all active:scale-95 group">
               <Icon name="LockClosedIcon" className="w-4 h-4 group-hover:animate-bounce" /> เข้าสู่ระบบเจ้าหน้าที่
             </button>
-            <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold tracking-widest opacity-50">v2.3.0</span>
+            <button onClick={() => setShowChangelog(true)} className="flex items-center gap-1 text-[10px] text-slate-300 dark:text-slate-600 font-bold tracking-widest opacity-50 hover:opacity-100 transition-opacity">
+              v2.3.0
+              <OutlineIcons.InformationCircleIcon className="w-4 h-4" />
+            </button>
           </div>
         </main>
       )}
@@ -1044,6 +1048,73 @@ const App: React.FC = () => {
       <AnnouncementModal isOpen={showAnnouncements} onClose={() => setShowAnnouncements(false)} announcements={announcements} />
       <FireIncidentModal isOpen={showFireModal} onClose={() => setShowFireModal(false)} onSubmitSuccess={async () => { setShowFireModal(false); const { fetchFireIncidents } = await import('./services/mockDriveService'); setFireIncidents(await fetchFireIncidents()); }} />
       <HotspotPage isOpen={showHotspotPage} onClose={() => setShowHotspotPage(false)} />
+      
+      {/* Changelog Modal */}
+      {showChangelog && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowChangelog(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <OutlineIcons.SparklesIcon className="w-5 h-5 text-amber-500" />
+                <h3 className="font-bold text-slate-800 dark:text-white">อัปเดทเวอร์ชั่น 2.3.0</h3>
+              </div>
+              <button onClick={() => setShowChangelog(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                <OutlineIcons.XMarkIcon className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm mb-2">✨ เพิ่มใหม่</h4>
+                  <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5">
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500">•</span>
+                      <span><strong>PWA Support</strong> - ติดตั้งบนมือถือได้, ทำงาน offline</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500">•</span>
+                      <span><strong>Hotspot/Fire Incident Modal</strong> - ใช้ React Portal แก้ปัญหากลางจอ</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500">•</span>
+                      <span><strong>ไอคอนเวอร์ชั่น</strong> - กดดูข้อมูลอัปเดทได้</span>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-blue-600 dark:text-blue-400 text-sm mb-2">🎨 ปรับปรุง</h4>
+                  <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5">
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-500">•</span>
+                      <span>ภาพประกาศโหลดเร็วขึ้น (lazy loading + skeleton)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-500">•</span>
+                      <span>UI/UX ส่วนหัวกระชับขึ้น</span>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-amber-600 dark:text-amber-400 text-sm mb-2">🔧 แก้ไข</h4>
+                  <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5">
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-500">•</span>
+                      <span>PM2.5 widget โหลดเร็วขึ้น (Air4Thai API)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-500">•</span>
+                      <span>ลบ GEMINI_API_KEY ที่ไม่ใช้ออก</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <p className="text-[10px] text-center text-slate-400">อัปเดทล่าสุด: 17 ก.พ. 2026</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
