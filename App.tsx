@@ -77,76 +77,88 @@ const App: React.FC = () => {
     localStorage.setItem('pending_reports', JSON.stringify(pendingReports));
   }, [pendingReports]);
 
-  // Fetch PM2.5 from Air4Thai (using multiple CORS proxy fallbacks)
+  // Fetch PM2.5 from Air4Thai (using parallel CORS proxy requests for speed)
   useEffect(() => {
     const fetchAirQuality = async () => {
       const apiUrl = 'http://air4thai.pcd.go.th/forappV2/getAQI_JSON.php';
       
-      // Try multiple CORS proxies in order
+      // Multiple CORS proxies - race to get fastest response
       const proxyUrls = [
         `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`,
         `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`,
         `https://api.codetabs.com/v1/proxy?quest=${apiUrl}`
       ];
       
-      for (const proxyUrl of proxyUrls) {
-        try {
+      // Create fetch promises with timeout
+      const fetchWithTimeout = (url: string, timeoutMs = 4000) => {
+        return new Promise<Response>((resolve, reject) => {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+          const timeout = setTimeout(() => {
+            controller.abort();
+            reject(new Error('Timeout'));
+          }, timeoutMs);
           
-          const res = await fetch(proxyUrl, { 
+          fetch(url, { 
             signal: controller.signal,
             headers: { 'Accept': 'application/json' }
-          });
-          clearTimeout(timeout);
-          
-          if (!res.ok) continue;
-          
-          const data = await res.json();
-          if (!data?.stations) continue;
-          
-          // Find stations in Kanchanaburi area
-          const stations = data.stations;
-          const kanchanaburiStation = stations.find((s: any) =>
-            s.areaTH?.includes('กาญจนบุรี') || s.nameTH?.includes('กาญจนบุรี')
-          );
-
-          if (kanchanaburiStation?.AQILast) {
-            const pm25Value = parseFloat(kanchanaburiStation.AQILast.PM25?.value) || 0;
-            const colorId = parseInt(kanchanaburiStation.AQILast.PM25?.color_id) || parseInt(kanchanaburiStation.AQILast.AQI?.color_id) || 1;
-            const updateTime = kanchanaburiStation.AQILast.time || '--:--';
-            const levels = [
-              { id: 1, level: 'ดีมาก', color: '#3b82f6' },
-              { id: 2, level: 'ดี', color: '#22c55e' },
-              { id: 3, level: 'ปานกลาง', color: '#eab308' },
-              { id: 4, level: 'เริ่มมีผล', color: '#f97316' },
-              { id: 5, level: 'มีผลต่อสุขภาพ', color: '#ef4444' },
-            ];
-            const matched = levels.find(l => l.id === colorId) || levels[2];
-            setAirQuality({
-              pm25: pm25Value,
-              level: matched.level,
-              color: matched.color,
-              station: kanchanaburiStation.areaTH || kanchanaburiStation.nameTH || 'กาญจนบุรี',
-              updateTime: updateTime
+          })
+            .then(res => {
+              clearTimeout(timeout);
+              resolve(res);
+            })
+            .catch(err => {
+              clearTimeout(timeout);
+              reject(err);
             });
-            return; // Success - exit loop
-          }
-        } catch (e) {
-          console.log(`Proxy failed: ${proxyUrl.substring(0, 30)}...`, e);
-          continue; // Try next proxy
-        }
-      }
+        });
+      };
       
-      // All proxies failed - use fallback mock data
-      console.warn('All CORS proxies failed, using fallback data');
-      setAirQuality({
-        pm25: 15,
-        level: 'ดี',
-        color: '#22c55e',
-        station: 'กาญจนบุรี (Offline)',
-        updateTime: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-      });
+      try {
+        // Race all proxies - use the first successful one
+        const res = await Promise.any(proxyUrls.map(url => fetchWithTimeout(url)));
+        
+        if (!res.ok) throw new Error('API response not OK');
+        
+        const data = await res.json();
+        if (!data?.stations) throw new Error('Invalid data format');
+        
+        // Find stations in Kanchanaburi area
+        const stations = data.stations;
+        const kanchanaburiStation = stations.find((s: any) =>
+          s.areaTH?.includes('กาญจนบุรี') || s.nameTH?.includes('กาญจนบุรี')
+        );
+
+        if (kanchanaburiStation?.AQILast) {
+          const pm25Value = parseFloat(kanchanaburiStation.AQILast.PM25?.value) || 0;
+          const colorId = parseInt(kanchanaburiStation.AQILast.PM25?.color_id) || parseInt(kanchanaburiStation.AQILast.AQI?.color_id) || 1;
+          const updateTime = kanchanaburiStation.AQILast.time || '--:--';
+          const levels = [
+            { id: 1, level: 'ดีมาก', color: '#3b82f6' },
+            { id: 2, level: 'ดี', color: '#22c55e' },
+            { id: 3, level: 'ปานกลาง', color: '#eab308' },
+            { id: 4, level: 'เริ่มมีผล', color: '#f97316' },
+            { id: 5, level: 'มีผลต่อสุขภาพ', color: '#ef4444' },
+          ];
+          const matched = levels.find(l => l.id === colorId) || levels[2];
+          setAirQuality({
+            pm25: pm25Value,
+            level: matched.level,
+            color: matched.color,
+            station: kanchanaburiStation.areaTH || kanchanaburiStation.nameTH || 'กาญจนบุรี',
+            updateTime: updateTime
+          });
+        }
+      } catch (e) {
+        console.warn('All CORS proxies failed, using fallback:', e);
+        // All proxies failed - use fallback mock data
+        setAirQuality({
+          pm25: 15,
+          level: 'ดี',
+          color: '#22c55e',
+          station: 'กาญจนบุรี (Offline)',
+          updateTime: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+        });
+      }
     };
     
     fetchAirQuality();
