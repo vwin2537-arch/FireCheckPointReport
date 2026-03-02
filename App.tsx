@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { WATCH_POINTS } from './constants';
-import { Shift, ReportState, Announcement } from './types';
-import { submitReport, fetchDashboardData, fetchAnnouncements, createAnnouncement, deleteAnnouncement } from './services/mockDriveService';
+import { Shift, ReportState, Announcement, ParticipationScore, ReportWithScore } from './types';
+import { submitReport, fetchDashboardData, fetchAnnouncements, createAnnouncement, deleteAnnouncement, fetchAllPoints, fetchParticipationSummary } from './services/mockDriveService';
 import AnnouncementModal from './components/AnnouncementModal';
 import FireIncidentModal from './components/FireIncidentModalNew';
 import HotspotPage from './components/HotspotPage';
@@ -211,10 +211,54 @@ const App: React.FC = () => {
   const [folderStatus, setFolderStatus] = useState<any[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [showConfirmOverlap, setShowConfirmOverlap] = useState(false);
+  const [participationScores, setParticipationScores] = useState<ParticipationScore[]>([]);
+  const [isLoadingScores, setIsLoadingScores] = useState(false);
 
   const formatPointName = (name: string) => {
     return name.replace(/(\d+)/, (match) => match.padStart(2, '0'));
   };
+
+  // โหลดสรุปคะแนนจาก Sheet (เร็วมาก ไม่ต้องวน Drive)
+  // เกณฑ์: แต่ละรายงาน = 10 คะแนน, ครบ 3 กะ/วัน = โบนัส 5 คะแนน
+  const loadAllPointsAndCalculateScores = useCallback(async () => {
+    try {
+      setIsLoadingScores(true);
+      const summary = await fetchParticipationSummary();
+      const apiPoints = Array.isArray(summary?.points) ? summary.points : [];
+
+      const allScores: any[] = [];
+      for (let i = 1; i <= 20; i++) {
+        const pointName = `จุดเฝ้าระวังที่ ${i.toString().padStart(2, '0')}`;
+        const found = apiPoints.find((p: any) => p.pointName === pointName);
+        allScores.push({
+          pointName,
+          shortName: `จุด ${i.toString().padStart(2, '0')}`,
+          totalScore: found?.totalScore || 0,
+          totalReports: found?.totalReports || 0,
+          totalDays: found?.totalDays || 0,
+          fullDays: found?.fullDays || 0,
+          shifts: found?.shifts || {},
+          rank: 0,
+          reports: [],
+          averageScore: found ? Math.round(found.totalScore / Math.max(found.totalReports, 1)) : 0
+        });
+      }
+
+      allScores.sort((a: any, b: any) => b.totalScore - a.totalScore);
+      allScores.forEach((s: any, i: number) => s.rank = i + 1);
+
+      setParticipationScores(allScores);
+    } catch (error) {
+      console.error('Error loading participation summary:', error);
+      setParticipationScores([]);
+    } finally {
+      setIsLoadingScores(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAllPointsAndCalculateScores();
+  }, [loadAllPointsAndCalculateScores]);
 
   // Ref to track the latest requested date to prevent race conditions
   const activeRequestDate = useRef<string | null>(null);
@@ -415,8 +459,168 @@ const App: React.FC = () => {
     e.target.value = '';
   };
 
+  // ฟังก์ชันส่งออกข้อมูลคะแนนเป็น PDF
+  const exportToPDF = async () => {
+    if (participationScores.length === 0) {
+      alert('ไม่มีข้อมูลคะแนนที่จะส่งออก');
+      return;
+    }
+
+    try {
+      // สร้าง element สำหรับ PDF
+      const element = document.createElement('div');
+      element.style.cssText = `
+        padding: 20px;
+        font-family: 'Sarabun', sans-serif;
+        background: white;
+        color: black;
+        width: 210mm;
+        min-height: 297mm;
+      `;
+
+      // สร้างหัวข้อ
+      const header = document.createElement('div');
+      header.innerHTML = `
+        <h1 style="text-align: center; margin-bottom: 30px; color: #1e40af;">
+          🏆 รายงานคะแนนการมีส่วนร่วมของจุดเฝ้าระวัง
+        </h1>
+        <p style="text-align: center; margin-bottom: 20px; font-size: 14px;">
+          วันที่สร้างรายงาน: ${new Date().toLocaleDateString('th-TH', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
+        </p>
+        <hr style="margin-bottom: 20px; border: 1px solid #e5e7eb;">
+      `;
+
+      // สร้างตารางอันดับคะแนน
+      const table = document.createElement('table');
+      table.style.cssText = `
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      `;
+
+      // สร้างหัวตาราง
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr style="background-color: #3b82f6; color: white;">
+          <th style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">อันดับ</th>
+          <th style="padding: 10px; border: 1px solid #d1d5db; text-align: left;">จุดเฝ้าระวัง</th>
+          <th style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">จำนวนรายงาน</th>
+          <th style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">คะแนนรวม</th>
+          <th style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">คะแนนเฉลี่ย</th>
+        </tr>
+      `;
+
+      // สร้างเนื้อหาตาราง
+      const tbody = document.createElement('tbody');
+      participationScores.forEach((score, index) => {
+        const row = document.createElement('tr');
+        row.style.cssText = index % 2 === 0 ? 'background-color: #f9fafb;' : 'background-color: white;';
+        
+        const rankColor = score.rank === 1 ? '#fbbf24' : score.rank === 2 ? '#d1d5db' : score.rank === 3 ? '#f59e0b' : '#6b7280';
+        
+        row.innerHTML = `
+          <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center; font-weight: bold; color: ${rankColor};">
+            ${score.rank}
+          </td>
+          <td style="padding: 8px; border: 1px solid #d1d5db; text-align: left; font-weight: bold;">
+            ${score.pointName}
+          </td>
+          <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">
+            ${score.reports.length}
+          </td>
+          <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center; font-weight: bold; color: #059669;">
+            ${score.totalScore}
+          </td>
+          <td style="padding: 8px; border: 1px solid #d1d5db; text-align: center;">
+            ${score.averageScore}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+
+      // สร้างสรุปสถิติ
+      const summary = document.createElement('div');
+      const totalReports = participationScores.reduce((sum, score) => sum + score.reports.length, 0);
+      const totalScore = participationScores.reduce((sum, score) => sum + score.totalScore, 0);
+      const averageScoreAll = Math.round(totalScore / totalReports) || 0;
+
+      summary.innerHTML = `
+        <div style="margin-top: 30px; padding: 15px; background-color: #f3f4f6; border-radius: 8px;">
+          <h3 style="margin-bottom: 10px; color: #1f2937;">📊 สรุปสถิติ</h3>
+          <p style="margin: 5px 0; font-size: 14px;">จำนวนจุดเฝ้าระวังที่รายงาน: ${participationScores.length} จุด</p>
+          <p style="margin: 5px 0; font-size: 14px;">จำนวนรายงานทั้งหมด: ${totalReports} รายงาน</p>
+          <p style="margin: 5px 0; font-size: 14px;">คะแนนรวมทั้งหมด: ${totalScore} คะแนน</p>
+          <p style="margin: 5px 0; font-size: 14px;">คะแนนเฉลี่ยต่อรายงาน: ${averageScoreAll} คะแนน</p>
+        </div>
+      `;
+
+      // สร้างท้ายกระดาษ
+      const footer = document.createElement('div');
+      footer.innerHTML = `
+        <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #6b7280;">
+          <hr style="margin-bottom: 10px; border: 1px solid #e5e7eb;">
+          <p>ระบบเฝ้าระวังไฟป่า อุทยานแห่งชาติเอราวัณ</p>
+          <p>สร้างโดยระบบอัตโนมัติเมื่อ ${new Date().toLocaleString('th-TH')}</p>
+        </div>
+      `;
+
+      element.appendChild(header);
+      element.appendChild(table);
+      element.appendChild(summary);
+      element.appendChild(footer);
+
+      // เพิ่ม element ลงใน DOM (ชั่วคราว)
+      document.body.appendChild(element);
+
+      // ใช้ html2canvas และ jsPDF
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true
+      });
+
+      // ลบ element ออกจาก DOM
+      document.body.removeChild(element);
+
+      // สร้าง PDF
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      // ดาวน์โหลด PDF
+      const fileName = `คะแนนการมีส่วนร่วม_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('เกิดข้อผิดพลาดในการส่งออก PDF กรุณาลองใหม่');
+    }
+  };
+
   const handleCreateAnnouncement = async () => {
-    if (!annTitle.trim() || !annMessage.trim()) { alert('กรุณากรอกหัวข้อและรายละเอียดประกาศ'); return; }
+    if (!annTitle.trim() || !annMessage.trim()) { 
+      alert('กรุณากรอกหัวข้อและรายละเอียดประกาศ'); 
+      return; 
+    }
+    // ตรวจสอบว่า expiresAt ต้องอยู่ในอนาคต
+    if (annExpiresAt && new Date(annExpiresAt) <= new Date()) {
+      alert('เวลาหมดอายุต้องอยู่ในอนาคต');
+      return;
+    }
     setIsCreatingAnnouncement(true);
     try {
       const expiresAtIso = annExpiresAt ? new Date(annExpiresAt).toISOString() : null;
@@ -711,6 +915,128 @@ const App: React.FC = () => {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* Participation Score Dashboard Section */}
+      <div className="mt-8 mb-8 p-1 rounded-3xl bg-gradient-to-r from-amber-500 to-orange-600 shadow-2xl">
+        <div className="bg-slate-900 rounded-[1.4rem] p-6 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10"><Icon name="TrophyIcon" className="w-32 h-32" /></div>
+          <div className="flex justify-between items-center mb-6 relative z-10">
+            <h3 className="text-xl font-bold flex items-center gap-2"><span className="bg-amber-500 p-1.5 rounded-lg"><Icon name="TrophyIcon" className="w-5 h-5" /></span> คะแนนการมีส่วนร่วม</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black bg-white/10 px-3 py-1 rounded-full border border-white/10">ทั้งหมด {participationScores.length} จุด</span>
+              <button
+                onClick={loadAllPointsAndCalculateScores}
+                disabled={isLoadingScores}
+                className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded-full text-xs font-black text-white transition-colors active:scale-95 disabled:opacity-50"
+                title="รีเฟรชข้อมูล"
+              >
+                <Icon name="ArrowPathIcon" className={`w-4 h-4 ${isLoadingScores ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={exportToPDF}
+                className="px-3 py-1 bg-amber-500 hover:bg-amber-400 rounded-full text-xs font-black text-white transition-colors active:scale-95"
+                title="ส่งออก PDF"
+              >
+                <Icon name="DocumentArrowDownIcon" className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
+          {participationScores.length > 0 ? (
+            <div className="relative z-10 space-y-6">
+              {/* Top 3 Winners */}
+              <div className="flex justify-center items-end gap-4 mb-8">
+                {participationScores.slice(0, 3).map((score, index) => (
+                  <div key={score.pointName} className="flex flex-col items-center">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black shadow-lg ${
+                      index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-yellow-900' :
+                      index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-gray-800' :
+                      'bg-gradient-to-br from-amber-600 to-amber-800 text-amber-100'
+                    }`}>
+                      {index === 0 ? '🏆' : index === 1 ? '🥈' : '🥉'}
+                    </div>
+                    <div className="text-center mt-2">
+                      <p className="text-sm font-bold">{score.pointName}</p>
+                      <p className="text-xs text-slate-400">{score.totalScore} คะแนน</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Score Chart */}
+              <div className="bg-white/5 rounded-2xl p-4">
+                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-2">กราฟคะแนนรวม (เรียงจากสูงสุด)</h4>
+                <p className="text-xs text-slate-500 mb-3">10 คะแนน/รายงาน + โบนัส 5 เมื่อครบ 3 กะ/วัน</p>
+                <ResponsiveContainer width="100%" height={Math.max(400, participationScores.length * 28)}>
+                  <BarChart data={participationScores} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" horizontal={false} />
+                    <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                    <YAxis 
+                      type="category"
+                      dataKey="shortName" 
+                      tick={{ fill: '#e2e8f0', fontSize: 11 }}
+                      width={65}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                      labelStyle={{ color: '#f1f5f9', fontWeight: 'bold' }}
+                      formatter={(value: any, _name: any, props: any) => {
+                        const item = props.payload;
+                        return [`${value} คะแนน (${item.totalReports} รายงาน, ครบวัน ${item.fullDays})`, 'คะแนนรวม'];
+                      }}
+                    />
+                    <Bar dataKey="totalScore" radius={[0, 6, 6, 0]}>
+                      {participationScores.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={
+                          entry.rank === 1 ? '#facc15' :
+                          entry.rank === 2 ? '#9ca3af' :
+                          entry.rank === 3 ? '#d97706' :
+                          entry.totalScore > 0 ? '#3b82f6' : '#334155'
+                        } />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Ranking Table */}
+              <div className="bg-white/5 rounded-2xl p-4">
+                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">ตารางอันดับคะแนน</h4>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {participationScores.map((score) => (
+                    <div key={score.pointName} className="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${
+                          score.rank === 1 ? 'bg-yellow-500 text-yellow-900' :
+                          score.rank === 2 ? 'bg-gray-400 text-gray-800' :
+                          score.rank === 3 ? 'bg-amber-600 text-amber-100' :
+                          'bg-slate-600 text-slate-200'
+                        }`}>
+                          {score.rank}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold">{score.pointName}</p>
+                          <p className="text-xs text-slate-400">{(score as any).totalReports || 0} รายงาน</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-amber-400">{score.totalScore}</p>
+                        <p className="text-xs text-slate-400">เฉลี่ย {score.averageScore}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="relative z-10 text-center py-12">
+              <Icon name="TrophyIcon" className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+              <p className="text-slate-400">ยังไม่มีข้อมูลคะแนนการมีส่วนร่วม</p>
+              <p className="text-xs text-slate-500 mt-2">ข้อมูลจะปรากฏเมื่อมีการรายงานสถานการณ์</p>
+            </div>
+          )}
         </div>
       </div>
 

@@ -77,3 +77,20 @@ export interface FireIncident {
   image?: string;
   isInsidePark: boolean;
 }
+
+export interface ParticipationScore {
+  pointName: string;
+  totalScore: number;
+  reports: ReportWithScore[];
+  rank: number;
+  averageScore: number;
+}
+
+export interface ReportWithScore {
+  pointName: string;
+  shift: string;
+  timestamp: string;
+  score: number;
+  reportTime: string;
+  onTime: boolean;
+}

@@ -61,6 +61,65 @@ export const submitReport = async (
   }
 };
 
+export const updateAnnouncement = async (announcement: any): Promise<{ success: boolean; message: string }> => {
+  const payload: any = {
+    id: announcement.id,
+    title: announcement.title,
+    message: announcement.message,
+    level: announcement.level,
+    expiresAt: announcement.expiresAt ?? null,
+  };
+
+  // If provided a base64 image, send via `image`; otherwise, if explicit imageUrl is provided (including null for removal), send `imageUrl`
+  if (typeof announcement.image === 'string' && announcement.image.startsWith('data:image')) {
+    payload.image = announcement.image;
+  } else if ('imageUrl' in announcement) {
+    payload.imageUrl = announcement.imageUrl;
+  }
+
+  try {
+    if (USE_BACKEND_API) {
+      const response = await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'updateAnnouncement', payload })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        // Refresh list from backend for consistency
+        const current = await fetchAnnouncements();
+        localStorage.setItem('announcements', JSON.stringify(current));
+        return { success: true, message: result.message || 'แก้ไขประกาศเรียบร้อยแล้ว' };
+      }
+    }
+
+    // Fallback: update in LocalStorage
+    const current = await fetchAnnouncements();
+    const updated = current.map((a: any) => {
+      if (a.id !== announcement.id) return a;
+      const next = { ...a };
+      if (announcement.title !== undefined) next.title = announcement.title;
+      if (announcement.message !== undefined) next.message = announcement.message;
+      if (announcement.level !== undefined) next.level = announcement.level;
+      if ('expiresAt' in announcement) next.expiresAt = announcement.expiresAt ?? null;
+      if (typeof announcement.image === 'string' && announcement.image.startsWith('data:image')) {
+        // keep base64 locally; there is no backend conversion here
+        next.imageUrl = announcement.image;
+      } else if ('imageUrl' in announcement) {
+        next.imageUrl = normalizeImageUrl(announcement.imageUrl);
+      }
+      return next;
+    });
+    localStorage.setItem('announcements', JSON.stringify(updated));
+    return { success: true, message: 'แก้ไขประกาศเรียบร้อยแล้ว (Offline Mode)' };
+  } catch (e) {
+    console.error('Update announcement error:', e);
+    return { success: false, message: 'แก้ไขประกาศไม่สำเร็จ' };
+  }
+};
+
 export const fetchDashboardData = async (date: string): Promise<any[]> => {
   try {
     // ใช้ Cache Buster เพื่อให้ได้ข้อมูลล่าสุดเสมอ
@@ -72,6 +131,54 @@ export const fetchDashboardData = async (date: string): Promise<any[]> => {
   } catch (e) {
     console.error("Dashboard fetch error:", e);
     return [];
+  }
+};
+
+// ฟังก์ชันดึงข้อมูลทุกจุดเฝ้าระวัง (รวมจุดที่ไม่มีรายงาน)
+export const fetchAllPoints = async (): Promise<any[]> => {
+  try {
+    let reports: any[] = [];
+
+    if (USE_BACKEND_API) {
+      const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=getAllReports&t=${Date.now()}`);
+      if (response.ok) {
+        const data = await response.json();
+        reports = Array.isArray(data) ? data : [];
+      }
+    }
+
+    // สร้างข้อมูลทุก 20 จุด โดย frontend จัดการเอง
+    const allPoints = [];
+    for (let i = 1; i <= 20; i++) {
+      const pointName = `จุดเฝ้าระวังที่ ${i.toString().padStart(2, '0')}`;
+      const pointReports = reports.filter((r: any) => r.pointName === pointName);
+      allPoints.push({
+        pointName,
+        reports: pointReports,
+        totalReports: pointReports.length,
+        hasReports: pointReports.length > 0
+      });
+    }
+    return allPoints;
+  } catch (e) {
+    console.error("Fetch all points error:", e);
+    return [];
+  }
+};
+
+// ดึงสรุปคะแนนการมีส่วนร่วมจาก Sheet (เร็วมาก)
+export const fetchParticipationSummary = async (): Promise<any> => {
+  try {
+    if (USE_BACKEND_API) {
+      const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=getParticipationSummary&t=${Date.now()}`);
+      if (response.ok) {
+        return await response.json();
+      }
+    }
+    return { points: [], totalReports: 0 };
+  } catch (e) {
+    console.error("Fetch participation summary error:", e);
+    return { points: [], totalReports: 0 };
   }
 };
 
